@@ -21,12 +21,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Calendar, Clock, Eye } from "lucide-react";
+import { Trash2, Calendar, Clock, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   formatDateForDisplay,
   formatTimeForDisplay,
-  formatDateForInput,
   getCurrentDateInTimezone,
   extractDateInClinicTimezone,
 } from "@/lib/utils/timezone";
@@ -68,7 +67,6 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
   // If the user is a NURSE, restrict displayed appointments to today's date
   const displayedAppointments: AppointmentWithRelations[] = (() => {
     const all = appointments || [];
-    console.log("Paso 5: Citas recibidas en AppointmentsTable:", all);
     try {
       if (session?.user?.role === "NURSE") {
         const today = getCurrentDateInTimezone(); // YYYY-MM-DD in clinic timezone
@@ -248,9 +246,6 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
                     const displayDate = formatDateForDisplay(
                       appointment.date,
                       timezone
-                    );
-                    console.log(
-                      `Paso 6: Renderizando cita ${appointment.id}. Fecha original: ${appointment.date}, Timezone: ${timezone}, Fecha para mostrar: ${displayDate}`
                     );
                     return displayDate;
                   })()}

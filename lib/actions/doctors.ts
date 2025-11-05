@@ -203,7 +203,17 @@ export async function getDoctor(id: string) {
   const doctor = await prisma.doctor.findUnique({
     where: { id },
     include: {
-      clinic: true,
+      clinic: {
+        include: {
+          schedules: {
+            where: {
+              isActive: true,
+              deletedAt: null,
+            },
+            orderBy: { weekday: "asc" },
+          },
+        },
+      },
       user: true,
       defaultRoom: true,
       schedules: {
@@ -228,7 +238,26 @@ export async function getDoctor(id: string) {
     throw new Error("Unauthorized to view this doctor");
   }
 
-  return doctor;
+  // If doctor has no schedules, use clinic schedules as fallback
+  let schedules = doctor.schedules;
+  if (schedules.length === 0 && doctor.clinic?.schedules) {
+    schedules = doctor.clinic.schedules.map((clinicSchedule) => ({
+      id: `clinic-${clinicSchedule.id}`,
+      doctorId: doctor.id,
+      weekday: clinicSchedule.weekday,
+      startTime: clinicSchedule.startTime,
+      endTime: clinicSchedule.endTime,
+      isActive: clinicSchedule.isActive,
+      createdAt: clinicSchedule.createdAt,
+      updatedAt: clinicSchedule.updatedAt,
+      deletedAt: clinicSchedule.deletedAt,
+    }));
+  }
+
+  return {
+    ...doctor,
+    schedules,
+  };
 }
 
 export async function getDoctorByUserId() {
@@ -241,7 +270,17 @@ export async function getDoctorByUserId() {
   const doctor = await prisma.doctor.findUnique({
     where: { userId: session.user.id },
     include: {
-      clinic: true,
+      clinic: {
+        include: {
+          schedules: {
+            where: {
+              isActive: true,
+              deletedAt: null,
+            },
+            orderBy: { weekday: "asc" },
+          },
+        },
+      },
       user: true,
       defaultRoom: true,
       schedules: {
@@ -263,5 +302,24 @@ export async function getDoctorByUserId() {
     throw new Error("Unauthorized to view this doctor");
   }
 
-  return doctor;
+  // If doctor has no schedules, use clinic schedules as fallback
+  let schedules = doctor.schedules;
+  if (schedules.length === 0 && doctor.clinic?.schedules) {
+    schedules = doctor.clinic.schedules.map((clinicSchedule) => ({
+      id: `clinic-${clinicSchedule.id}`,
+      doctorId: doctor.id,
+      weekday: clinicSchedule.weekday,
+      startTime: clinicSchedule.startTime,
+      endTime: clinicSchedule.endTime,
+      isActive: clinicSchedule.isActive,
+      createdAt: clinicSchedule.createdAt,
+      updatedAt: clinicSchedule.updatedAt,
+      deletedAt: clinicSchedule.deletedAt,
+    }));
+  }
+
+  return {
+    ...doctor,
+    schedules,
+  };
 }

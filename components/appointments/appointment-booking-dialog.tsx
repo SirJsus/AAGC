@@ -392,7 +392,6 @@ export function AppointmentBookingDialog({
   };
 
   const handleDateSelect = (date: Date | undefined) => {
-    console.log("Paso 1: Fecha seleccionada en el calendario:", date);
     setSelectedDate(date);
     setSelectedSlot(null); // Reset slot when date changes
   };
@@ -411,12 +410,6 @@ export function AppointmentBookingDialog({
     // Get timezone from doctor's clinic, fallback to default
     const timezone = selectedDoctor.clinic?.timezone || "America/Mexico_City";
     const formattedDate = formatDateForInput(selectedDate, timezone);
-    console.log(
-      "Paso 2: Fecha formateada que se enviará a createAppointment:",
-      formattedDate,
-      "Timezone:",
-      timezone
-    );
 
     setIsLoading(true);
     try {

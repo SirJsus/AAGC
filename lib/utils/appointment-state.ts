@@ -3,7 +3,7 @@ import { AppointmentStatus } from "@prisma/client";
 /**
  * Flujo de transiciones de estados de citas
  *
- * PENDING (Pendiente) → CONFIRMED (Confirmada) o CANCELLED (Cancelada)
+ * PENDING (Pendiente) → CONFIRMED (Confirmada), REQUIRES_RESCHEDULE (Requiere Reagendar) o CANCELLED (Cancelada)
  * CONFIRMED (Confirmada) → IN_CONSULTATION (En Consulta), CANCELLED, NO_SHOW (No Asistió), REQUIRES_RESCHEDULE (Requiere Reagendar)
  * IN_CONSULTATION (En Consulta) → PAID (Pagada)
  * PAID (Pagada) → COMPLETED (Completada)
@@ -20,6 +20,7 @@ export function isValidStateTransition(
   const transitions: Record<AppointmentStatus, AppointmentStatus[]> = {
     [AppointmentStatus.PENDING]: [
       AppointmentStatus.CONFIRMED,
+      AppointmentStatus.REQUIRES_RESCHEDULE,
       AppointmentStatus.CANCELLED,
     ],
     [AppointmentStatus.CONFIRMED]: [
@@ -56,6 +57,7 @@ export function getAvailableTransitions(
   const transitions: Record<AppointmentStatus, AppointmentStatus[]> = {
     [AppointmentStatus.PENDING]: [
       AppointmentStatus.CONFIRMED,
+      AppointmentStatus.REQUIRES_RESCHEDULE,
       AppointmentStatus.CANCELLED,
     ],
     [AppointmentStatus.CONFIRMED]: [

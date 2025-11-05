@@ -32,10 +32,6 @@ const createAppointmentSchema = z.object({
 export async function createAppointment(
   data: z.infer<typeof createAppointmentSchema>
 ) {
-  console.log(
-    "Paso 3: Datos recibidos en createAppointment en el servidor:",
-    data
-  );
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canCreateAppointments(session.user)) {
@@ -111,11 +107,6 @@ export async function createAppointment(
       appointmentType: true,
     },
   });
-
-  console.log(
-    "Paso 4: Cita creada en la base de datos (antes de revalidar):",
-    appointment
-  );
 
   revalidatePath("/appointments");
   return appointment;

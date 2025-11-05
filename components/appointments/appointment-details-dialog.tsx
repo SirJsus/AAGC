@@ -181,6 +181,8 @@ export function AppointmentDetailsDialog({
   const [nonWorkingWeekdays, setNonWorkingWeekdays] = useState<Set<number>>(
     new Set()
   );
+  // Track if schedules are inherited from clinic
+  const [usingClinicSchedules, setUsingClinicSchedules] = useState(false);
 
   // Use localStatus for available transitions so the dialog updates immediately
   let availableTransitions = getAvailableTransitions(localStatus);
@@ -349,12 +351,26 @@ export function AppointmentDetailsDialog({
       // hasn't updated yet and all days appear unavailable).
       const doctorObj = await getDoctor(doctorId);
       const workingWeekdays = new Set<number>();
+      let hasClinicSchedules = false;
+
       if (doctorObj && Array.isArray(doctorObj.schedules)) {
         doctorObj.schedules.forEach((s: any) => {
           // schedules.weekday uses 0 (Sunday) - 6 (Saturday)
-          if (typeof s.weekday === "number") workingWeekdays.add(s.weekday);
+          if (typeof s.weekday === "number") {
+            workingWeekdays.add(s.weekday);
+            // Check if this schedule is inherited from clinic (prefixed with "clinic-")
+            if (
+              s.id &&
+              typeof s.id === "string" &&
+              s.id.startsWith("clinic-")
+            ) {
+              hasClinicSchedules = true;
+            }
+          }
         });
       }
+
+      setUsingClinicSchedules(hasClinicSchedules);
 
       // non-working weekdays = all days 0..6 minus workingWeekdays
       const nonWorking = new Set<number>();
@@ -624,10 +640,8 @@ export function AppointmentDetailsDialog({
           : null
       );
       onSuccess?.();
-      // close only if server-returned status is terminal
-      if (isTerminalStatus(updated.status as AppointmentStatus)) {
-        onOpenChange(false);
-      }
+      // Always close the dialog after successful rescheduling
+      onOpenChange(false);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Error al reagendar"
@@ -747,6 +761,17 @@ export function AppointmentDetailsDialog({
                       </p>
                     )}
                   </div>
+
+                  {usingClinicSchedules && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Este médico está usando los horarios de atención de la
+                        clínica. Los horarios mostrados corresponden a la
+                        disponibilidad general de la clínica.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {selectedDoctor && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1358,6 +1383,18 @@ export function AppointmentDetailsDialog({
                                 </SelectContent>
                               </Select>
                             </div>
+
+                            {usingClinicSchedules && (
+                              <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                  Este médico está usando los horarios de
+                                  atención de la clínica. Los horarios mostrados
+                                  corresponden a la disponibilidad general de la
+                                  clínica.
+                                </AlertDescription>
+                              </Alert>
+                            )}
 
                             {followUpDoctor && (
                               // Use a single-column layout for follow-up date/time so

@@ -99,10 +99,18 @@ export function formatDateForDisplay(
     dateObj = date;
   }
 
-  // Convert UTC DateTime to clinic timezone for display
-  return formatInTimeZone(dateObj, timezone, "PPP", {
-    /* locale: es */
+  const displayDate = new Date(dateObj).toLocaleString(locale, {
+    timeZone: timezone,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    //hour: "2-digit",
+    //minute: "2-digit",
+    //hour12: true, // o false para formato 24h
   });
+
+  // Convert UTC DateTime to clinic timezone for display
+  return displayDate;
 }
 
 /**
