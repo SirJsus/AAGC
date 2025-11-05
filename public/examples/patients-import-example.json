@@ -1,0 +1,37 @@
+
+[
+  {
+    "firstName": "Juan",
+    "lastName": "García",
+    "secondLastName": "Pérez",
+    "phone": "+52 55 1234 5678",
+    "email": "juan.garcia@email.com",
+    "birthDate": "1980-05-15",
+    "gender": "MALE",
+    "address": "Av. Reforma 123, Col. Centro, CDMX",
+    "emergencyContact": "María García (Esposa) - +52 55 1234 5679",
+    "notes": "Paciente con historial de diabetes"
+  },
+  {
+    "firstName": "María",
+    "lastName": "López",
+    "secondLastName": "Martínez",
+    "phone": "+52 55 2345 6789",
+    "email": "maria.lopez@email.com",
+    "birthDate": "1992-08-22",
+    "gender": "FEMALE",
+    "address": "Calle Juárez 456, Col. Roma, CDMX",
+    "emergencyContact": "Pedro López (Hermano) - +52 55 2345 6790",
+    "notes": "Alérgica a la penicilina"
+  },
+  {
+    "firstName": "Carlos",
+    "lastName": "Hernández",
+    "phone": "+52 55 3456 7890",
+    "email": "carlos.hernandez@email.com",
+    "birthDate": "1975-12-10",
+    "gender": "MALE",
+    "address": "Av. Insurgentes 789, Col. Condesa, CDMX",
+    "emergencyContact": "Ana Hernández (Esposa) - +52 55 3456 7891"
+  }
+]

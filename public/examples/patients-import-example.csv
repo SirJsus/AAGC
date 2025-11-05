@@ -1,0 +1,5 @@
+
+firstName,lastName,secondLastName,phone,email,birthDate,gender,address,emergencyContact,notes
+Juan,García,Pérez,+52 55 1234 5678,juan.garcia@email.com,1980-05-15,MALE,"Av. Reforma 123, Col. Centro, CDMX","María García (Esposa) - +52 55 1234 5679",Paciente con historial de diabetes
+María,López,Martínez,+52 55 2345 6789,maria.lopez@email.com,1992-08-22,FEMALE,"Calle Juárez 456, Col. Roma, CDMX","Pedro López (Hermano) - +52 55 2345 6790",Alérgica a la penicilina
+Carlos,Hernández,,+52 55 3456 7890,carlos.hernandez@email.com,1975-12-10,MALE,"Av. Insurgentes 789, Col. Condesa, CDMX","Ana Hernández (Esposa) - +52 55 3456 7891",

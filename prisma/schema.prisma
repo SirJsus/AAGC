@@ -1,0 +1,471 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  // Explicit output path so the generated client goes to the project's
+  // node_modules. This removes the deprecation warning and avoids
+  // ambiguity in monorepo setups. The path is relative to the `prisma/`
+  // folder, so `../node_modules/.prisma/client` points to the repo root's
+  // node_modules.
+  output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+// Authentication and user management
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Role {
+  ADMIN
+  CLINIC_ADMIN
+  RECEPTION
+  NURSE
+  DOCTOR
+  PATIENT
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  password         String
+  firstName        String
+  lastName         String
+  secondLastName   String?
+  noSecondLastName Boolean   @default(false)
+  role             Role      @default(PATIENT)
+  clinicId         String?
+  phone            String?
+  address          String?
+  dateOfBirth      DateTime?
+  specialty        String? // For DOCTOR role
+  licenseNumber    String?   @unique // For DOCTOR role
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  clinic   Clinic?   @relation(fields: [clinicId], references: [id])
+  accounts Account[]
+  sessions Session[]
+  doctor   Doctor?
+
+  @@index([email])
+  @@index([clinicId])
+  @@index([role])
+}
+
+model Clinic {
+  id                 String    @id @default(cuid())
+  name               String
+  address            String?
+  phone              String?
+  email              String?
+  timezone           String    @default("America/Mexico_City")
+  locale             String    @default("es-MX")
+  defaultSlotMinutes Int       @default(30)
+  clinicAcronym      String    @unique
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  users            User[]
+  rooms            Room[]
+  doctors          Doctor[]
+  patients         Patient[]
+  appointmentTypes AppointmentType[]
+  appointments     Appointment[]
+  auditLogs        AuditLog[]
+  importJobs       ImportJob[]
+
+  @@index([isActive])
+}
+
+model Room {
+  id        String    @id @default(cuid())
+  name      String
+  clinicId  String
+  location  String?
+  capacity  Int       @default(1)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctors      Doctor[]
+  appointments Appointment[]
+
+  @@unique([clinicId, name])
+  @@index([clinicId])
+  @@index([isActive])
+}
+
+model Doctor {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  clinicId  String
+  roomId    String?
+  acronym   String    @default("D")
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultRoom  Room?             @relation(fields: [roomId], references: [id])
+  schedules    DoctorSchedule[]
+  exceptions   DoctorException[]
+  appointments Appointment[]
+  patients     Patient[]
+
+  @@index([clinicId])
+  @@index([isActive])
+}
+
+model DoctorSchedule {
+  id        String    @id @default(cuid())
+  doctorId  String
+  weekday   Int // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime String // HH:MM format
+  endTime   String // HH:MM format
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, weekday, startTime, endTime])
+  @@index([doctorId])
+  @@index([weekday])
+  @@index([isActive])
+}
+
+model DoctorException {
+  id        String    @id @default(cuid())
+  doctorId  String
+  date      String // YYYY-MM-DD format
+  startTime String? // HH:MM format, null means full day
+  endTime   String? // HH:MM format, null means full day
+  reason    String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date, startTime, endTime])
+  @@index([doctorId])
+  @@index([date])
+  @@index([isActive])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model Patient {
+  id                               String    @id @default(cuid())
+  customId                         String    @unique
+  customDoctorAcronym              String? // Custom 3-letter acronym for doctor in ID
+  firstName                        String
+  lastName                         String
+  secondLastName                   String?
+  noSecondLastName                 Boolean   @default(false)
+  phone                            String
+  email                            String?
+  birthDate                        DateTime?
+  gender                           Gender?
+  address                          String?
+  emergencyContactFirstName        String?
+  emergencyContactLastName         String?
+  emergencyContactSecondLastName   String?
+  emergencyContactNoSecondLastName Boolean   @default(false)
+  emergencyContactPhone            String?
+  primaryDoctorFirstName           String?
+  primaryDoctorLastName            String?
+  primaryDoctorSecondLastName      String?
+  primaryDoctorNoSecondLastName    Boolean   @default(false)
+  primaryDoctorPhone               String?
+  notes                            String?
+  clinicId                         String
+  doctorId                         String?
+  pendingCompletion                Boolean   @default(false)
+  isActive                         Boolean   @default(true)
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
+  deletedAt                        DateTime?
+
+  // Relations
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor       Doctor?       @relation(fields: [doctorId], references: [id])
+  appointments Appointment[]
+  insurances   Insurance[]
+  consents     Consent[]
+
+  @@index([clinicId])
+  @@index([doctorId])
+  @@index([customId])
+  @@index([phone])
+  @@index([firstName, lastName])
+  @@index([isActive])
+}
+
+model Insurance {
+  id           String    @id @default(cuid())
+  patientId    String
+  provider     String
+  policyNumber String
+  groupNumber  String?
+  expiryDate   DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([policyNumber])
+  @@index([isActive])
+}
+
+model AppointmentType {
+  id              String    @id @default(cuid())
+  name            String
+  clinicId        String
+  durationMin     Int       @default(30)
+  price           Decimal   @default(0) @db.Decimal(10, 2)
+  preInstructions String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@unique([clinicId, name])
+  @@index([clinicId])
+  @@index([isActive])
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_CONSULTATION
+  TRANSFER_PENDING
+  COMPLETED
+  CANCELLED
+  PAID
+  NO_SHOW
+  REQUIRES_RESCHEDULE
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  TRANSFER
+}
+
+model Appointment {
+  id                String            @id @default(cuid())
+  patientId         String
+  doctorId          String
+  clinicId          String
+  roomId            String?
+  appointmentTypeId String?
+  customReason      String?
+  customPrice       Decimal?          @db.Decimal(10, 2)
+  date              String // YYYY-MM-DD format
+  startTime         String // HH:MM format
+  endTime           String // HH:MM format
+  status            AppointmentStatus @default(PENDING)
+  paymentMethod     PaymentMethod?
+  paymentConfirmed  Boolean           @default(false)
+  notes             String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  cancelledBy       String?
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor          Doctor           @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic          Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  room            Room?            @relation(fields: [roomId], references: [id])
+  appointmentType AppointmentType? @relation(fields: [appointmentTypeId], references: [id])
+
+  @@unique([doctorId, date, startTime])
+  @@unique([roomId, date, startTime])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([date])
+  @@index([status])
+  @@index([isActive])
+}
+
+enum ConsentType {
+  TREATMENT
+  PRIVACY
+  DATA_SHARING
+  MARKETING
+  RESEARCH
+}
+
+model Consent {
+  id        String      @id @default(cuid())
+  patientId String
+  type      ConsentType
+  title     String
+  content   String      @db.Text
+  granted   Boolean     @default(false)
+  grantedAt DateTime?
+  revokedAt DateTime?
+  version   String      @default("1.0")
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([type])
+  @@index([granted])
+  @@index([isActive])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  VIEW
+  EXPORT
+  IMPORT
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  clinicId   String?
+  action     AuditAction
+  entityType String // e.g., "User", "Patient", "Appointment"
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  // Relations
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+
+  @@index([userId])
+  @@index([clinicId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ImportJobType {
+  PATIENTS
+  APPOINTMENTS
+  DOCTORS
+  USERS
+}
+
+model ImportJob {
+  id            String          @id @default(cuid())
+  clinicId      String?
+  type          ImportJobType
+  status        ImportJobStatus @default(PENDING)
+  fileName      String
+  filePath      String?
+  totalRows     Int?
+  processedRows Int?
+  successRows   Int?
+  errorRows     Int?
+  errors        Json?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdBy     String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+
+  @@index([clinicId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}

@@ -1,0 +1,30 @@
+
+[
+  {
+    "firstName": "Eduardo",
+    "lastName": "Hernández",
+    "license": "MED-001-CDM",
+    "specialty": "Cardiología",
+    "phone": "+52 55 2345 6789",
+    "email": "eduardo.hernandez@email.com",
+    "acronym": "EH"
+  },
+  {
+    "firstName": "María",
+    "lastName": "López",
+    "license": "MED-002-CDM",
+    "specialty": "Cardiología Pediátrica",
+    "phone": "+52 55 3456 7890",
+    "email": "maria.lopez@email.com",
+    "acronym": "ML"
+  },
+  {
+    "firstName": "Roberto",
+    "lastName": "Silva",
+    "license": "MED-003-CDM",
+    "specialty": "Medicina General",
+    "phone": "+52 55 4567 8901",
+    "email": "roberto.silva@email.com",
+    "acronym": "RS"
+  }
+]
