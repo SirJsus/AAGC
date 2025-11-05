@@ -14,7 +14,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("POSTGRES_URL")
+  url      = env("DATABASE_URL")
+  //url      = env("POSTGRES_URL")
 }
 
 // Authentication and user management
@@ -116,7 +117,28 @@ model Clinic {
   appointments     Appointment[]
   auditLogs        AuditLog[]
   importJobs       ImportJob[]
+  schedules        ClinicSchedule[]
 
+  @@index([isActive])
+}
+
+model ClinicSchedule {
+  id        String    @id @default(cuid())
+  clinicId  String
+  weekday   Int // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime String // HH:MM format
+  endTime   String // HH:MM format
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, weekday, startTime, endTime])
+  @@index([clinicId])
+  @@index([weekday])
   @@index([isActive])
 }
 
@@ -328,7 +350,7 @@ model Appointment {
   appointmentTypeId String?
   customReason      String?
   customPrice       Decimal?          @db.Decimal(10, 2)
-  date              String // YYYY-MM-DD format
+  date              DateTime // Stored as UTC DateTime
   startTime         String // HH:MM format
   endTime           String // HH:MM format
   status            AppointmentStatus @default(PENDING)

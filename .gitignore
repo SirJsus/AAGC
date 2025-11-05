@@ -85,3 +85,4 @@ prisma/migrations/*_migration.sql.tmp
 *.njsproj
 *.sln
 *.sw?
+*.temp

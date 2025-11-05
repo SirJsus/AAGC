@@ -28,6 +28,7 @@ import {
   formatTimeForDisplay,
   formatDateForInput,
   getCurrentDateInTimezone,
+  extractDateInClinicTimezone,
 } from "@/lib/utils/timezone";
 import { AppointmentBookingDialog } from "./appointment-booking-dialog";
 import { AppointmentDetailsDialog } from "./appointment-details-dialog";
@@ -67,6 +68,7 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
   // If the user is a NURSE, restrict displayed appointments to today's date
   const displayedAppointments: AppointmentWithRelations[] = (() => {
     const all = appointments || [];
+    console.log("Paso 5: Citas recibidas en AppointmentsTable:", all);
     try {
       if (session?.user?.role === "NURSE") {
         const today = getCurrentDateInTimezone(); // YYYY-MM-DD in clinic timezone
@@ -74,7 +76,8 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
           // appointment.date can be string or Date
           const dateObj =
             typeof a.date === "string" ? new Date(a.date) : a.date;
-          return formatDateForInput(dateObj) === today;
+          const timezone = a.clinic?.timezone || "America/Mexico_City";
+          return extractDateInClinicTimezone(dateObj, timezone) === today;
         });
       }
     } catch (e) {
@@ -238,7 +241,20 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
                   {appointment.doctor?.user?.lastName}{" "}
                   {appointment.doctor?.user?.secondLastName || ""}
                 </TableCell>
-                <TableCell>{formatDateForDisplay(appointment.date)}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const timezone =
+                      appointment.clinic?.timezone || "America/Mexico_City";
+                    const displayDate = formatDateForDisplay(
+                      appointment.date,
+                      timezone
+                    );
+                    console.log(
+                      `Paso 6: Renderizando cita ${appointment.id}. Fecha original: ${appointment.date}, Timezone: ${timezone}, Fecha para mostrar: ${displayDate}`
+                    );
+                    return displayDate;
+                  })()}
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4 text-muted-foreground" />

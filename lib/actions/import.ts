@@ -341,7 +341,7 @@ async function importDoctor(
     const secondLastInitial = data.secondLastName
       ? data.secondLastName.charAt(0).toUpperCase()
       : "";
-    acronym = `Dr${firstInitial}${lastInitial}${secondLastInitial}`;
+    acronym = `${firstInitial}${lastInitial}${secondLastInitial}`;
   }
 
   // Crear el registro en Doctor apuntando al User creado

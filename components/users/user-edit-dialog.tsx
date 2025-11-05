@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -10,57 +10,63 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { updateUser } from "@/lib/actions/users"
-import { toast } from "sonner"
-import { Edit, User, Stethoscope } from "lucide-react"
-import { Role } from "@prisma/client"
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { updateUser } from "@/lib/actions/users";
+import { toast } from "sonner";
+import { Edit, User, Stethoscope } from "lucide-react";
+import { Role } from "@prisma/client";
 
 interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  secondLastName?: string | null
-  noSecondLastName?: boolean | null
-  phone?: string | null
-  role: Role
-  clinicId?: string | null
-  isActive: boolean
-  specialty?: string | null
-  licenseNumber?: string | null
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  secondLastName?: string | null;
+  noSecondLastName?: boolean | null;
+  phone?: string | null;
+  role: Role;
+  clinicId?: string | null;
+  isActive: boolean;
+  specialty?: string | null;
+  licenseNumber?: string | null;
   doctor?: {
-    acronym: string
-    roomId?: string | null
-  } | null
+    acronym: string;
+    roomId?: string | null;
+  } | null;
 }
 
 interface UserEditDialogProps {
-  user: User
-  clinics: { id: string; name: string }[]
-  rooms: { id: string; name: string; clinicId: string }[]
-  currentUserRole: Role
-  currentUserClinicId?: string | null
+  user: User;
+  clinics: { id: string; name: string }[];
+  rooms: { id: string; name: string; clinicId: string }[];
+  currentUserRole: Role;
+  currentUserClinicId?: string | null;
 }
 
-export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentUserClinicId }: UserEditDialogProps) {
-  const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState("general")
+export function UserEditDialog({
+  user,
+  clinics,
+  rooms,
+  currentUserRole,
+  currentUserClinicId,
+}: UserEditDialogProps) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("general");
   const [formData, setFormData] = useState({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -74,12 +80,13 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
     licenseNumber: user.licenseNumber || "",
     acronym: user.doctor?.acronym || "",
     roomId: user.doctor?.roomId || "",
-  })
+  });
 
   // Determine which roles can be assigned
-  const availableRoles = currentUserRole === "ADMIN" 
-    ? ["ADMIN", "CLINIC_ADMIN", "RECEPTION", "NURSE", "DOCTOR"]
-    : ["CLINIC_ADMIN", "RECEPTION", "NURSE", "DOCTOR"]
+  const availableRoles =
+    currentUserRole === "ADMIN"
+      ? ["ADMIN", "CLINIC_ADMIN", "RECEPTION", "NURSE", "DOCTOR"]
+      : ["CLINIC_ADMIN", "RECEPTION", "NURSE", "DOCTOR"];
 
   const roleLabels: Record<string, string> = {
     ADMIN: "Administrador",
@@ -87,28 +94,30 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
     RECEPTION: "Recepcionista",
     NURSE: "Enfermero/a",
     DOCTOR: "Doctor",
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     // Validación adicional para doctores
     if (formData.role === "DOCTOR") {
       if (!formData.specialty || !formData.licenseNumber) {
-        toast.error("Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'")
-        setActiveTab("doctor")
-        setLoading(false)
-        return
+        toast.error(
+          "Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'"
+        );
+        setActiveTab("doctor");
+        setLoading(false);
+        return;
       }
       if (currentUserRole === "ADMIN" && !formData.clinicId) {
-        toast.error("Debe seleccionar una clínica para el doctor")
-        setActiveTab("general")
-        setLoading(false)
-        return
+        toast.error("Debe seleccionar una clínica para el doctor");
+        setActiveTab("general");
+        setLoading(false);
+        return;
       }
     }
-    
-    setLoading(true)
+
+    setLoading(true);
 
     try {
       await updateUser(user.id, {
@@ -118,31 +127,34 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
         licenseNumber: formData.licenseNumber || undefined,
         acronym: formData.acronym || undefined,
         roomId: formData.roomId || undefined,
-      })
+      });
 
-      toast.success("Usuario actualizado exitosamente")
-      setOpen(false)
-      router.refresh()
+      toast.success("Usuario actualizado exitosamente");
+      setOpen(false);
+      router.refresh();
     } catch (error: any) {
-      toast.error(error.message || "Error al actualizar usuario")
+      toast.error(error.message || "Error al actualizar usuario");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Filter rooms by selected clinic
-  const availableRooms = rooms.filter(room => room.clinicId === formData.clinicId)
+  const availableRooms = rooms.filter(
+    (room) => room.clinicId === formData.clinicId
+  );
 
   // Generate automatic acronym for display
   const generateAutoAcronym = () => {
-    if (!formData.firstName || !formData.lastName) return "DrXX"
-    const firstInitial = formData.firstName.charAt(0).toUpperCase()
-    const lastInitial = formData.lastName.charAt(0).toUpperCase()
-    const secondLastInitial = formData.secondLastName && !formData.noSecondLastName 
-      ? formData.secondLastName.charAt(0).toUpperCase() 
-      : ''
-    return `Dr${firstInitial}${lastInitial}${secondLastInitial}`
-  }
+    if (!formData.firstName || !formData.lastName) return "XX";
+    const firstInitial = formData.firstName.charAt(0).toUpperCase();
+    const lastInitial = formData.lastName.charAt(0).toUpperCase();
+    const secondLastInitial =
+      formData.secondLastName && !formData.noSecondLastName
+        ? formData.secondLastName.charAt(0).toUpperCase()
+        : "";
+    return `${firstInitial}${lastInitial}${secondLastInitial}`;
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -160,14 +172,18 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="general" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 Datos Generales
               </TabsTrigger>
-              <TabsTrigger 
-                value="doctor" 
+              <TabsTrigger
+                value="doctor"
                 disabled={formData.role !== "DOCTOR"}
                 className="flex items-center gap-2"
               >
@@ -183,7 +199,9 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                   id="firstName"
                   required
                   value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, firstName: e.target.value })
+                  }
                   placeholder="Ej: Juan"
                   minLength={2}
                   title="Ingrese el nombre del usuario"
@@ -196,7 +214,9 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                   id="lastName"
                   required
                   value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lastName: e.target.value })
+                  }
                   placeholder="Ej: Pérez"
                   minLength={2}
                   title="Ingrese el apellido paterno"
@@ -205,12 +225,17 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
 
               <div className="space-y-2">
                 <Label htmlFor="secondLastName">
-                  Apellido Materno {!formData.noSecondLastName && <span className="text-red-500">*</span>}
+                  Apellido Materno{" "}
+                  {!formData.noSecondLastName && (
+                    <span className="text-red-500">*</span>
+                  )}
                 </Label>
                 <Input
                   id="secondLastName"
                   value={formData.secondLastName}
-                  onChange={(e) => setFormData({ ...formData, secondLastName: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, secondLastName: e.target.value })
+                  }
                   placeholder="Ej: García"
                   disabled={formData.noSecondLastName}
                   required={!formData.noSecondLastName}
@@ -225,8 +250,8 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                       setFormData({
                         ...formData,
                         noSecondLastName: checked as boolean,
-                        secondLastName: checked ? "" : formData.secondLastName
-                      })
+                        secondLastName: checked ? "" : formData.secondLastName,
+                      });
                     }}
                   />
                   <label
@@ -244,7 +269,9 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                   id="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                   placeholder="Ej: 5512345678"
                   pattern="[0-9]{10,15}"
                   title="Ingrese un número de teléfono válido (10-15 dígitos)"
@@ -258,7 +285,9 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                 <Label htmlFor="role">Rol *</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value as Role })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, role: value as Role })
+                  }
                 >
                   <SelectTrigger id="role">
                     <SelectValue />
@@ -281,11 +310,20 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
               {currentUserRole === "ADMIN" && (
                 <div className="space-y-2">
                   <Label htmlFor="clinicId">
-                    Clínica {formData.role === "DOCTOR" && <span className="text-red-500">*</span>}
+                    Clínica{" "}
+                    {formData.role === "DOCTOR" && (
+                      <span className="text-red-500">*</span>
+                    )}
                   </Label>
                   <Select
                     value={formData.clinicId || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, clinicId: value === "none" ? "" : value, roomId: "" })}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        clinicId: value === "none" ? "" : value,
+                        roomId: "",
+                      })
+                    }
                   >
                     <SelectTrigger id="clinicId">
                       <SelectValue placeholder="Seleccionar clínica (opcional)" />
@@ -308,13 +346,17 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                     Usuario Activo
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    {formData.isActive ? "El usuario puede acceder al sistema" : "El usuario no puede acceder"}
+                    {formData.isActive
+                      ? "El usuario puede acceder al sistema"
+                      : "El usuario no puede acceder"}
                   </p>
                 </div>
                 <Switch
                   id="isActive"
                   checked={formData.isActive}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isActive: checked })
+                  }
                 />
               </div>
             </TabsContent>
@@ -328,23 +370,33 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                       id="specialty"
                       required={formData.role === "DOCTOR"}
                       value={formData.specialty}
-                      onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, specialty: e.target.value })
+                      }
                       placeholder="Ej: Cardiología"
                       minLength={3}
                       title="Ingrese la especialidad médica del doctor"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Ejemplos: Cardiología, Pediatría, Traumatología, Medicina General
+                      Ejemplos: Cardiología, Pediatría, Traumatología, Medicina
+                      General
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="licenseNumber">Número de Cédula Profesional *</Label>
+                    <Label htmlFor="licenseNumber">
+                      Número de Cédula Profesional *
+                    </Label>
                     <Input
                       id="licenseNumber"
                       required={formData.role === "DOCTOR"}
                       value={formData.licenseNumber}
-                      onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          licenseNumber: e.target.value,
+                        })
+                      }
                       placeholder="Ej: 12345678"
                       pattern="[0-9]{7,10}"
                       title="Ingrese el número de cédula profesional (7-10 dígitos)"
@@ -359,17 +411,21 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                     <Input
                       id="acronym"
                       value={formData.acronym}
-                      onChange={(e) => setFormData({ ...formData, acronym: e.target.value.toUpperCase() })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          acronym: e.target.value.toUpperCase(),
+                        })
+                      }
                       placeholder={`Ej: DR, DRA (auto: ${generateAutoAcronym()})`}
                       maxLength={10}
                       pattern="[A-Za-z0-9]{1,10}"
                       title="Acrónimo de 1-10 caracteres alfanuméricos"
                     />
                     <p className="text-xs text-muted-foreground">
-                      {formData.acronym 
+                      {formData.acronym
                         ? "Acrónimo personalizado para identificar al doctor"
-                        : `Opcional. Si se deja vacío: ${generateAutoAcronym()}. Ejemplos: DR, DRA, DOC`
-                      }
+                        : `Opcional. Si se deja vacío: ${generateAutoAcronym()}. Ejemplos: DR, DRA, DOC`}
                     </p>
                   </div>
 
@@ -378,13 +434,20 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                       <Label htmlFor="roomId">Consultorio por Defecto</Label>
                       <Select
                         value={formData.roomId || "none"}
-                        onValueChange={(value) => setFormData({ ...formData, roomId: value === "none" ? "" : value })}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            roomId: value === "none" ? "" : value,
+                          })
+                        }
                       >
                         <SelectTrigger id="roomId">
                           <SelectValue placeholder="Seleccionar consultorio (opcional)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin consultorio asignado</SelectItem>
+                          <SelectItem value="none">
+                            Sin consultorio asignado
+                          </SelectItem>
                           {availableRooms.map((room) => (
                             <SelectItem key={room.id} value={room.id}>
                               {room.name}
@@ -401,7 +464,8 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                   {formData.clinicId && availableRooms.length === 0 && (
                     <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
                       <p className="text-sm text-yellow-800">
-                        No hay consultorios disponibles en esta clínica. Puedes asignar uno más tarde.
+                        No hay consultorios disponibles en esta clínica. Puedes
+                        asignar uno más tarde.
                       </p>
                     </div>
                   )}
@@ -409,7 +473,8 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                   {!formData.clinicId && currentUserRole === "ADMIN" && (
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                       <p className="text-sm text-blue-800">
-                        Selecciona una clínica en "Datos Generales" para poder asignar un consultorio.
+                        Selecciona una clínica en "Datos Generales" para poder
+                        asignar un consultorio.
                       </p>
                     </div>
                   )}
@@ -418,7 +483,8 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
                 <div className="rounded-lg border border-muted p-8 text-center">
                   <Stethoscope className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    Selecciona el rol "Doctor" en la pestaña de Datos Generales para completar esta sección
+                    Selecciona el rol "Doctor" en la pestaña de Datos Generales
+                    para completar esta sección
                   </p>
                 </div>
               )}
@@ -441,5 +507,5 @@ export function UserEditDialog({ user, clinics, rooms, currentUserRole, currentU
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

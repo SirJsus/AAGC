@@ -51,13 +51,13 @@ import {
 } from "@/lib/actions/doctor-schedules";
 
 const WEEKDAYS = [
-  { value: 0, label: "Domingo" },
-  { value: 1, label: "Lunes" },
-  { value: 2, label: "Martes" },
-  { value: 3, label: "Miércoles" },
-  { value: 4, label: "Jueves" },
-  { value: 5, label: "Viernes" },
-  { value: 6, label: "Sábado" },
+  { value: 0, label: "Domingo", short: "D" },
+  { value: 1, label: "Lunes", short: "L" },
+  { value: 2, label: "Martes", short: "M" },
+  { value: 3, label: "Miércoles", short: "X" },
+  { value: 4, label: "Jueves", short: "J" },
+  { value: 5, label: "Viernes", short: "V" },
+  { value: 6, label: "Sábado", short: "S" },
 ];
 
 interface Doctor {
@@ -98,10 +98,19 @@ export function DoctorSchedulesManager() {
 
   // Schedule form state
   const [scheduleForm, setScheduleForm] = useState({
-    weekday: "1",
+    selectedDays: [] as number[],
     startTime: "09:00",
     endTime: "17:00",
   });
+
+  const toggleDay = (dayValue: number) => {
+    setScheduleForm((prev) => ({
+      ...prev,
+      selectedDays: prev.selectedDays.includes(dayValue)
+        ? prev.selectedDays.filter((d) => d !== dayValue)
+        : [...prev.selectedDays, dayValue],
+    }));
+  };
 
   // Exception form state
   const [exceptionForm, setExceptionForm] = useState({
@@ -176,16 +185,33 @@ export function DoctorSchedulesManager() {
   async function handleCreateSchedule() {
     if (!selectedDoctor) return;
 
+    if (scheduleForm.selectedDays.length === 0) {
+      toast.error("Seleccione al menos un día");
+      return;
+    }
+
     try {
-      await createDoctorSchedule({
-        doctorId: selectedDoctor,
-        weekday: parseInt(scheduleForm.weekday),
-        startTime: scheduleForm.startTime,
-        endTime: scheduleForm.endTime,
-      });
-      toast.success("Horario agregado exitosamente");
+      // Create schedule for each selected day
+      const promises = scheduleForm.selectedDays.map((weekday) =>
+        createDoctorSchedule({
+          doctorId: selectedDoctor,
+          weekday,
+          startTime: scheduleForm.startTime,
+          endTime: scheduleForm.endTime,
+        })
+      );
+
+      await Promise.all(promises);
+
+      toast.success(
+        `Horario agregado para ${scheduleForm.selectedDays.length} día(s)`
+      );
       setScheduleDialogOpen(false);
-      setScheduleForm({ weekday: "1", startTime: "09:00", endTime: "17:00" });
+      setScheduleForm({
+        selectedDays: [],
+        startTime: "09:00",
+        endTime: "17:00",
+      });
       loadSchedulesAndExceptions();
     } catch (error: any) {
       toast.error(error.message || "Error al crear el horario");
@@ -358,9 +384,15 @@ export function DoctorSchedulesManager() {
           {/* Regular Schedules Tab */}
           <TabsContent value="schedule" className="space-y-4">
             <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                Configure los días y horarios de trabajo regulares del doctor
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  Configure los días y horarios de trabajo regulares del doctor
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Si no se configuran horarios específicos, se usarán los
+                  horarios de atención de la clínica
+                </p>
+              </div>
               <Button onClick={() => setScheduleDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Agregar Horario
@@ -374,6 +406,10 @@ export function DoctorSchedulesManager() {
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Clock className="mx-auto h-12 w-12 mb-4 opacity-50" />
                   <p>No hay horarios configurados</p>
+                  <p className="text-sm mt-2">
+                    Este doctor usará los horarios de la clínica si están
+                    definidos
+                  </p>
                 </CardContent>
               </Card>
             ) : (
@@ -391,28 +427,39 @@ export function DoctorSchedulesManager() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {daySchedules.map((schedule) => (
-                            <div
-                              key={schedule.id}
-                              className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">
-                                  {schedule.startTime} - {schedule.endTime}
-                                </span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  handleDeleteSchedule(schedule.id)
-                                }
+                          {daySchedules.map((schedule) => {
+                            const isInherited =
+                              schedule.id.startsWith("clinic-");
+                            return (
+                              <div
+                                key={schedule.id}
+                                className="flex items-center justify-between p-3 bg-muted rounded-lg"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">
+                                    {schedule.startTime} - {schedule.endTime}
+                                  </span>
+                                  {isInherited && (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                      Heredado de la clínica
+                                    </span>
+                                  )}
+                                </div>
+                                {!isInherited && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleDeleteSchedule(schedule.id)
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </CardContent>
                     </Card>
@@ -505,29 +552,42 @@ export function DoctorSchedulesManager() {
           <DialogHeader>
             <DialogTitle>Agregar Horario Regular</DialogTitle>
             <DialogDescription>
-              Configure un bloque de horario para un día específico de la semana
+              Seleccione los días y configure el horario que se aplicará a todos
+              ellos
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="weekday">Día de la semana</Label>
-              <Select
-                value={scheduleForm.weekday}
-                onValueChange={(value) =>
-                  setScheduleForm({ ...scheduleForm, weekday: value })
-                }
-              >
-                <SelectTrigger id="weekday">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEEKDAYS.map((day) => (
-                    <SelectItem key={day.value} value={day.value.toString()}>
-                      {day.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <Label>Días de la semana</Label>
+              <div className="flex gap-2 justify-center">
+                {WEEKDAYS.map((day) => {
+                  const isSelected = scheduleForm.selectedDays.includes(
+                    day.value
+                  );
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDay(day.value)}
+                      className={`
+                        w-12 h-12 rounded-full font-semibold text-sm
+                        transition-all duration-200
+                        ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-md scale-110"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }
+                      `}
+                      title={day.label}
+                    >
+                      {day.short}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Haz clic en los días para seleccionarlos
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -542,6 +602,7 @@ export function DoctorSchedulesManager() {
                       startTime: e.target.value,
                     })
                   }
+                  className="[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:hover:bg-accent [&::-webkit-calendar-picker-indicator]:rounded-sm [&::-webkit-calendar-picker-indicator]:p-1"
                 />
               </div>
               <div className="space-y-2">
@@ -556,6 +617,7 @@ export function DoctorSchedulesManager() {
                       endTime: e.target.value,
                     })
                   }
+                  className="[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:hover:bg-accent [&::-webkit-calendar-picker-indicator]:rounded-sm [&::-webkit-calendar-picker-indicator]:p-1"
                 />
               </div>
             </div>
@@ -567,7 +629,12 @@ export function DoctorSchedulesManager() {
             >
               Cancelar
             </Button>
-            <Button onClick={handleCreateSchedule}>Agregar</Button>
+            <Button
+              onClick={handleCreateSchedule}
+              disabled={scheduleForm.selectedDays.length === 0}
+            >
+              Agregar Horario
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -687,6 +754,7 @@ export function DoctorSchedulesManager() {
                         startTime: e.target.value,
                       })
                     }
+                    className="[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:hover:bg-accent [&::-webkit-calendar-picker-indicator]:rounded-sm [&::-webkit-calendar-picker-indicator]:p-1"
                   />
                 </div>
                 <div className="space-y-2">
@@ -701,6 +769,7 @@ export function DoctorSchedulesManager() {
                         endTime: e.target.value,
                       })
                     }
+                    className="[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:hover:bg-accent [&::-webkit-calendar-picker-indicator]:rounded-sm [&::-webkit-calendar-picker-indicator]:p-1"
                   />
                 </div>
               </div>

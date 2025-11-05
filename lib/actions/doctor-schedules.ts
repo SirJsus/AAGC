@@ -136,7 +136,43 @@ export async function getDoctorSchedules(doctorId: string) {
     orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
   });
 
-  return schedules;
+  // If doctor has specific schedules, return those
+  if (schedules.length > 0) {
+    return schedules;
+  }
+
+  // Otherwise, fallback to clinic schedules
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: doctorId },
+    include: {
+      clinic: {
+        include: {
+          schedules: {
+            where: { isActive: true },
+            orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+          },
+        },
+      },
+    },
+  });
+
+  if (!doctor?.clinic?.schedules) {
+    return [];
+  }
+
+  // Map clinic schedules to look like doctor schedules for UI compatibility
+  // Note: These won't have an ID that can be used to delete/edit
+  return doctor.clinic.schedules.map((clinicSchedule) => ({
+    id: `clinic-${clinicSchedule.id}`, // Prefix to indicate these are inherited
+    doctorId,
+    weekday: clinicSchedule.weekday,
+    startTime: clinicSchedule.startTime,
+    endTime: clinicSchedule.endTime,
+    isActive: clinicSchedule.isActive,
+    createdAt: clinicSchedule.createdAt,
+    updatedAt: clinicSchedule.updatedAt,
+    deletedAt: clinicSchedule.deletedAt,
+  }));
 }
 
 export async function updateDoctorSchedule(

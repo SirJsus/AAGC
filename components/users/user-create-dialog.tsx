@@ -143,7 +143,7 @@ export function UserCreateDialog({
 
   // Generate automatic acronym for display
   const generateAutoAcronym = () => {
-    if (!formData.firstName || !formData.lastName) return "DrXX";
+    if (!formData.firstName || !formData.lastName) return "XX";
     const firstInitial = formData.firstName.charAt(0).toUpperCase();
     const lastInitial = formData.lastName.charAt(0).toUpperCase();
     const secondLastInitial =

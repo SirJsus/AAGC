@@ -27,20 +27,6 @@ interface DoctorsTableProps {
 }
 
 export function DoctorsTable({ doctors, canManage = true }: DoctorsTableProps) {
-  const handleEditDoctor = (doctorId: string) => {
-    // TODO: Implement edit doctor functionality
-    alert(
-      `Edit doctor functionality will be implemented in the next iteration`
-    );
-  };
-
-  const handleDeleteDoctor = (doctorId: string) => {
-    // TODO: Implement delete doctor functionality
-    alert(
-      `Delete doctor functionality will be implemented in the next iteration`
-    );
-  };
-
   const getScheduleSummary = (schedules?: DoctorSchedule[]) => {
     if (!schedules || schedules.length === 0) {
       return "No schedule";
@@ -98,20 +84,7 @@ export function DoctorsTable({ doctors, canManage = true }: DoctorsTableProps) {
                 {canManage && (
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditDoctor(doctor?.id || "")}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteDoctor(doctor?.id || "")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {/* Botones de acción si es necesario implementar */}
                     </div>
                   </TableCell>
                 )}

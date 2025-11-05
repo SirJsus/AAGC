@@ -23,6 +23,8 @@ import {
 import { toast } from "sonner";
 import { createClinic } from "@/lib/actions/clinics";
 import { Plus } from "lucide-react";
+import { ClinicSchedulesManager } from "./clinic-schedules-manager";
+import { Clinic } from "@prisma/client";
 
 interface ClinicCreateDialogProps {
   trigger?: React.ReactNode;
@@ -35,6 +37,8 @@ export function ClinicCreateDialog({
 }: ClinicCreateDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [createdClinic, setCreatedClinic] = useState<Clinic | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -101,7 +105,7 @@ export function ClinicCreateDialog({
 
     setIsLoading(true);
     try {
-      await createClinic({
+      const newClinic = await createClinic({
         name: formData.name,
         address: formData.address || undefined,
         phone: formData.phone || undefined,
@@ -113,6 +117,8 @@ export function ClinicCreateDialog({
       });
       toast.success("Clínica creada correctamente");
       setOpen(false);
+      setCreatedClinic(newClinic);
+      setScheduleDialogOpen(true);
       onSuccess?.();
     } catch (err: any) {
       toast.error(err?.message || "Error al crear la clínica");
@@ -122,165 +128,184 @@ export function ClinicCreateDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen)}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Agregar Clínica
-          </Button>
-        )}
-      </DialogTrigger>
+    <>
+      <Dialog open={open} onOpenChange={(isOpen) => setOpen(isOpen)}>
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Agregar Clínica
+            </Button>
+          )}
+        </DialogTrigger>
 
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Crear Clínica</DialogTitle>
-          <DialogDescription>
-            Agrega una nueva clínica al sistema
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear Clínica</DialogTitle>
+            <DialogDescription>
+              Agrega una nueva clínica al sistema
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          <div className="space-y-2">
-            <Label htmlFor="clinic-name">Nombre</Label>
-            <Input
-              id="clinic-name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              placeholder="Nombre de la clínica"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="clinic-address">Dirección</Label>
-            <Textarea
-              id="clinic-address"
-              value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-              placeholder="Dirección"
-              className="min-h-[56px]"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
             <div className="space-y-2">
-              <Label htmlFor="clinic-phone">Teléfono</Label>
+              <Label htmlFor="clinic-name">Nombre</Label>
               <Input
-                id="clinic-phone"
-                value={formData.phone}
+                id="clinic-name"
+                value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
+                  setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="Teléfono"
+                placeholder="Nombre de la clínica"
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="clinic-email">Email</Label>
-              <Input
-                id="clinic-email"
-                type="email"
-                value={formData.email}
+              <Label htmlFor="clinic-address">Dirección</Label>
+              <Textarea
+                id="clinic-address"
+                value={formData.address}
                 onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
+                  setFormData({ ...formData, address: e.target.value })
                 }
-                placeholder="contacto@clinica.com"
+                placeholder="Dirección"
+                className="min-h-[56px]"
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clinic-timezone">Zona horaria</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Select
-                  value={selectedCountry}
-                  onValueChange={(value) => {
-                    setSelectedCountry(value);
-                    const tzs = TIMEZONES[value];
-                    setSelectedTimezone(tzs && tzs.length > 0 ? tzs[0] : "");
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(TIMEZONES).map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="clinic-phone">Teléfono</Label>
+                <Input
+                  id="clinic-phone"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                  placeholder="Teléfono"
+                />
+              </div>
 
-                <Select
-                  value={selectedTimezone}
-                  onValueChange={(value) => setSelectedTimezone(value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(TIMEZONES[selectedCountry] || []).map((tz) => (
-                      <SelectItem key={tz} value={tz}>
-                        {tz.replace("_", " ").split("/").slice(1).join("/")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label htmlFor="clinic-email">Email</Label>
+                <Input
+                  id="clinic-email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  placeholder="contacto@clinica.com"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="clinic-timezone">Zona horaria</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={selectedCountry}
+                    onValueChange={(value) => {
+                      setSelectedCountry(value);
+                      const tzs = TIMEZONES[value];
+                      setSelectedTimezone(tzs && tzs.length > 0 ? tzs[0] : "");
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(TIMEZONES).map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={selectedTimezone}
+                    onValueChange={(value) => setSelectedTimezone(value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(TIMEZONES[selectedCountry] || []).map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {tz.replace("_", " ").split("/").slice(1).join("/")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="clinic-slot">Minutos por turno</Label>
+                <Input
+                  id="clinic-slot"
+                  type="number"
+                  value={String(formData.defaultSlotMinutes)}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      defaultSlotMinutes: Number(e.target.value) || 30,
+                    })
+                  }
+                  min={5}
+                  max={120}
+                />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="clinic-slot">Minutos por turno</Label>
+              <Label htmlFor="clinic-acronym">Acrónimo de la Clínica</Label>
               <Input
-                id="clinic-slot"
-                type="number"
-                value={String(formData.defaultSlotMinutes)}
+                id="clinic-acronym"
+                value={formData.clinicAcronym}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    defaultSlotMinutes: Number(e.target.value) || 30,
-                  })
+                  setFormData({ ...formData, clinicAcronym: e.target.value })
                 }
-                min={5}
-                max={120}
+                placeholder="CE1"
+                maxLength={5}
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="clinic-acronym">Acrónimo de la Clínica</Label>
-            <Input
-              id="clinic-acronym"
-              value={formData.clinicAcronym}
-              onChange={(e) =>
-                setFormData({ ...formData, clinicAcronym: e.target.value })
-              }
-              placeholder="CE1"
-              maxLength={5}
-            />
-          </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Creando..." : "Crear Clínica"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <div className="flex gap-2 justify-end mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Creando..." : "Crear Clínica"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {createdClinic && (
+        <ClinicSchedulesManager
+          clinic={createdClinic}
+          open={scheduleDialogOpen}
+          onOpenChange={(isOpen) => {
+            setScheduleDialogOpen(isOpen);
+            if (!isOpen) {
+              setCreatedClinic(null);
+            }
+          }}
+          onSuccess={() => {
+            setScheduleDialogOpen(false);
+            setCreatedClinic(null);
+          }}
+        />
+      )}
+    </>
   );
 }

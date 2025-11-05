@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Starting seed...");
+  console.log("🌱 Starting seed...");
 
   const adminUsername = process.env.ADMIN_USER;
   const adminPassword = process.env.ADMIN_PASSWORD;

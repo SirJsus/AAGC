@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 import { AppointmentStatus, PaymentMethod } from "@prisma/client";
 import { isValidStateTransition } from "@/lib/utils/appointment-state";
+import { extractDateInClinicTimezone } from "@/lib/utils/timezone";
 
 const createAppointmentSchema = z.object({
   patientId: z.string().min(1, "Patient is required"),
@@ -16,7 +17,13 @@ const createAppointmentSchema = z.object({
   appointmentTypeId: z.string().optional(),
   customReason: z.string().optional(),
   customPrice: z.number().optional(),
-  date: z.string().min(1, "Date is required"),
+  date: z.union([z.string(), z.date()]).transform((val) => {
+    // Convert string to Date if needed, otherwise use Date directly
+    if (typeof val === "string") {
+      return new Date(val);
+    }
+    return val;
+  }),
   startTime: z.string().min(1, "Start time is required"),
   endTime: z.string().min(1, "End time is required"),
   notes: z.string().optional(),
@@ -25,6 +32,10 @@ const createAppointmentSchema = z.object({
 export async function createAppointment(
   data: z.infer<typeof createAppointmentSchema>
 ) {
+  console.log(
+    "Paso 3: Datos recibidos en createAppointment en el servidor:",
+    data
+  );
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canCreateAppointments(session.user)) {
@@ -100,6 +111,11 @@ export async function createAppointment(
       appointmentType: true,
     },
   });
+
+  console.log(
+    "Paso 4: Cita creada en la base de datos (antes de revalidar):",
+    appointment
+  );
 
   revalidatePath("/appointments");
   return appointment;
@@ -468,7 +484,7 @@ interface ConflictCheck {
   doctorId: string;
   patientId: string;
   roomId?: string;
-  date: string;
+  date: Date | string;
   startTime: string;
   endTime: string;
   excludeAppointmentId?: string;
@@ -551,7 +567,7 @@ export async function checkAppointmentConflicts({
 
 interface SlotCalculationOptions {
   doctorId: string;
-  date: string;
+  date: Date | string;
   clinicId: string;
   appointmentDurationMin?: number;
 }
@@ -575,6 +591,12 @@ export async function calculateAvailableSlots({
   const targetDate = new Date(date);
   const weekday = targetDate.getDay();
 
+  // Convert date to string format (YYYY-MM-DD) for DoctorException queries
+  const dateString =
+    typeof date === "string"
+      ? date
+      : extractDateInClinicTimezone(date, clinic.timezone);
+
   // Get doctor's schedule for this weekday
   const schedules = await prisma.doctorSchedule.findMany({
     where: {
@@ -586,19 +608,37 @@ export async function calculateAvailableSlots({
     orderBy: { startTime: "asc" },
   });
 
+  // If no doctor-specific schedules exist, fallback to clinic schedules
+  let effectiveSchedules: Array<{
+    startTime: string;
+    endTime: string;
+    weekday: number;
+  }> = schedules;
+
+  if (schedules.length === 0) {
+    const clinicSchedules = await prisma.clinicSchedule.findMany({
+      where: {
+        clinicId,
+        weekday,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: { startTime: "asc" },
+    });
+    effectiveSchedules = clinicSchedules;
+  }
+
   // Check for doctor exceptions on this date
   const exceptions = await prisma.doctorException.findMany({
     where: {
       doctorId,
-      date,
+      date: dateString,
       isActive: true,
       deletedAt: null,
     },
   });
 
   // If there are exceptions, they override the regular schedule
-  let effectiveSchedules = schedules;
-
   // Check if there's a full-day block
   const fullDayBlock = exceptions.find((e) => !e.startTime && !e.endTime);
   if (fullDayBlock) {

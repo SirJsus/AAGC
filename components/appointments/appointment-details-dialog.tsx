@@ -51,6 +51,8 @@ import {
   formatDateForDisplay,
   formatTimeForDisplay,
   formatDateForInput,
+  formatDateToString,
+  extractDateInClinicTimezone,
 } from "@/lib/utils/timezone";
 import {
   updateAppointmentStatus,
@@ -366,10 +368,11 @@ export function AppointmentDetailsDialog({
       const start = new Date(today);
       const end = new Date(today);
       end.setDate(end.getDate() + 30);
-      const format = (d: Date) => formatDateForInput(d);
+      const timezone = appointment.clinic?.timezone || "America/Mexico_City";
+      const startString = formatDateToString(start, timezone);
 
       // Prefer to fetch exceptions (only days with exceptions), rather than full availability per day
-      const exceptions = await getDoctorExceptions(doctorId, format(start));
+      const exceptions = await getDoctorExceptions(doctorId, startString);
       const unavailable = new Set<string>();
       if (Array.isArray(exceptions)) {
         exceptions.forEach((ex: any) => {
@@ -519,10 +522,12 @@ export function AppointmentDetailsDialog({
           );
         } else {
           try {
+            const timezone =
+              appointment.clinic?.timezone || "America/Mexico_City";
             await createAppointment({
               patientId: appointment.patientId,
               doctorId: followUpDoctor,
-              date: formatDateForInput(followUpDate),
+              date: formatDateForInput(followUpDate, timezone),
               startTime: followUpSlot.startTime,
               endTime: followUpSlot.endTime,
               appointmentTypeId: appointment.appointmentTypeId || undefined,
@@ -586,10 +591,11 @@ export function AppointmentDetailsDialog({
 
     setIsUpdating(true);
     try {
+      const timezone = appointment.clinic?.timezone || "America/Mexico_City";
       const updated = await updateAppointment(appointment.id, {
         patientId: appointment.patientId,
         doctorId: selectedDoctor,
-        date: formatDateForInput(selectedDate),
+        date: formatDateForInput(selectedDate, timezone),
         startTime: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
         appointmentTypeId: appointment.appointmentTypeId || undefined,
@@ -757,7 +763,13 @@ export function AppointmentDetailsDialog({
                             const today = new Date(
                               new Date().setHours(0, 0, 0, 0)
                             );
-                            const key = formatDateForInput(date as Date);
+                            const timezone =
+                              appointment.clinic?.timezone ||
+                              "America/Mexico_City";
+                            const key = formatDateToString(
+                              date as Date,
+                              timezone
+                            );
                             const weekday = (date as Date).getDay();
                             return (
                               date < today ||
@@ -775,7 +787,11 @@ export function AppointmentDetailsDialog({
                           <SlotPicker
                             doctorId={selectedDoctor}
                             clinicId={appointment.clinicId}
-                            date={formatDateForInput(selectedDate)}
+                            date={formatDateForInput(
+                              selectedDate,
+                              appointment.clinic?.timezone ||
+                                "America/Mexico_City"
+                            )}
                             appointmentDurationMin={
                               appointment.appointmentType?.durationMin || 30
                             }
@@ -1361,8 +1377,12 @@ export function AppointmentDetailsDialog({
                                       const today = new Date(
                                         new Date().setHours(0, 0, 0, 0)
                                       );
-                                      const key = formatDateForInput(
-                                        date as Date
+                                      const timezone =
+                                        appointment.clinic?.timezone ||
+                                        "America/Mexico_City";
+                                      const key = formatDateToString(
+                                        date as Date,
+                                        timezone
                                       );
                                       const weekday = (date as Date).getDay();
                                       return (
@@ -1381,7 +1401,11 @@ export function AppointmentDetailsDialog({
                                     <SlotPicker
                                       doctorId={followUpDoctor}
                                       clinicId={appointment.clinicId}
-                                      date={formatDateForInput(followUpDate)}
+                                      date={formatDateForInput(
+                                        followUpDate,
+                                        appointment.clinic?.timezone ||
+                                          "America/Mexico_City"
+                                      )}
                                       appointmentDurationMin={
                                         appointment.appointmentType
                                           ?.durationMin || 30
@@ -1475,7 +1499,13 @@ export function AppointmentDetailsDialog({
                               <strong>
                                 {followUpDate
                                   ? formatDateForDisplay(
-                                      formatDateForInput(followUpDate)
+                                      formatDateForInput(
+                                        followUpDate,
+                                        appointment.clinic?.timezone ||
+                                          "America/Mexico_City"
+                                      ),
+                                      appointment.clinic?.timezone ||
+                                        "America/Mexico_City"
                                     )
                                   : ""}
                               </strong>

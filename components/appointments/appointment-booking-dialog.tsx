@@ -60,7 +60,11 @@ import { getDoctors } from "@/lib/actions/doctors";
 import { getAppointmentTypes } from "@/lib/actions/appointment-types";
 import { getRooms } from "@/lib/actions/rooms";
 import { getClinics } from "@/lib/actions/clinics";
-import { formatDateForInput } from "@/lib/utils/timezone";
+import {
+  formatDateForInput,
+  formatDateToString,
+  extractDateInClinicTimezone,
+} from "@/lib/utils/timezone";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface AppointmentTypeForClient extends Omit<AppointmentType, "price"> {
@@ -172,6 +176,8 @@ export function AppointmentBookingDialog({
   const [nonWorkingWeekdays, setNonWorkingWeekdays] = useState<Set<number>>(
     new Set()
   );
+  // Track if schedules are inherited from clinic
+  const [usingClinicSchedules, setUsingClinicSchedules] = useState(false);
 
   useEffect(() => {
     if (open && selectedDoctor) {
@@ -193,22 +199,39 @@ export function AppointmentBookingDialog({
     try {
       // Build non-working weekdays from selectedDoctor.schedules
       const workingWeekdays = new Set<number>();
+      let hasClinicSchedules = false;
+
       if (selectedDoctor && Array.isArray(selectedDoctor.schedules)) {
         selectedDoctor.schedules.forEach((s: any) => {
-          if (typeof s.weekday === "number") workingWeekdays.add(s.weekday);
+          if (typeof s.weekday === "number") {
+            workingWeekdays.add(s.weekday);
+            // Check if this schedule is inherited from clinic (prefixed with "clinic-")
+            if (
+              s.id &&
+              typeof s.id === "string" &&
+              s.id.startsWith("clinic-")
+            ) {
+              hasClinicSchedules = true;
+            }
+          }
         });
       }
+
+      setUsingClinicSchedules(hasClinicSchedules);
 
       const nonWorking = new Set<number>();
       for (let i = 0; i < 7; i++) {
         if (!workingWeekdays.has(i)) nonWorking.add(i);
       }
+
       setNonWorkingWeekdays(nonWorking);
 
       // Fetch explicit exceptions (from today onwards) and mark only full-day exceptions as unavailable
       const today = new Date();
-      const format = (d: Date) => formatDateForInput(d);
-      const exceptions = await getDoctorExceptions(doctorId, format(today));
+      const timezone =
+        selectedDoctor?.clinic?.timezone || "America/Mexico_City";
+      const todayString = formatDateToString(today, timezone);
+      const exceptions = await getDoctorExceptions(doctorId, todayString);
       const unavailable = new Set<string>();
       if (Array.isArray(exceptions)) {
         exceptions.forEach((ex: any) => {
@@ -218,7 +241,7 @@ export function AppointmentBookingDialog({
       }
       setUnavailableDates(unavailable);
     } catch (err) {
-      console.error("Error loading availability range:", err);
+      console.error("❌ Error loading availability range:", err);
     }
   }
 
@@ -369,6 +392,7 @@ export function AppointmentBookingDialog({
   };
 
   const handleDateSelect = (date: Date | undefined) => {
+    console.log("Paso 1: Fecha seleccionada en el calendario:", date);
     setSelectedDate(date);
     setSelectedSlot(null); // Reset slot when date changes
   };
@@ -384,12 +408,22 @@ export function AppointmentBookingDialog({
       return;
     }
 
+    // Get timezone from doctor's clinic, fallback to default
+    const timezone = selectedDoctor.clinic?.timezone || "America/Mexico_City";
+    const formattedDate = formatDateForInput(selectedDate, timezone);
+    console.log(
+      "Paso 2: Fecha formateada que se enviará a createAppointment:",
+      formattedDate,
+      "Timezone:",
+      timezone
+    );
+
     setIsLoading(true);
     try {
       await createAppointment({
         patientId: selectedPatient.id,
         doctorId: selectedDoctor.id,
-        date: formatDateForInput(selectedDate),
+        date: formattedDate,
         startTime: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
         appointmentTypeId:
@@ -1042,6 +1076,17 @@ export function AppointmentBookingDialog({
               </Button>
             </div>
 
+            {usingClinicSchedules && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Este médico está usando los horarios de atención de la
+                  clínica. Los horarios mostrados corresponden a la
+                  disponibilidad general de la clínica.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -1057,7 +1102,10 @@ export function AppointmentBookingDialog({
                     onSelect={handleDateSelect}
                     disabled={(date) => {
                       const today = new Date(new Date().setHours(0, 0, 0, 0));
-                      const key = formatDateForInput(date as Date);
+                      const timezone =
+                        selectedDoctor?.clinic?.timezone ||
+                        "America/Mexico_City";
+                      const key = formatDateToString(date as Date, timezone);
                       const weekday = (date as Date).getDay();
                       return (
                         date < today ||
@@ -1075,7 +1123,10 @@ export function AppointmentBookingDialog({
                   <SlotPicker
                     doctorId={selectedDoctor.id}
                     clinicId={selectedDoctor.clinicId}
-                    date={formatDateForInput(selectedDate)}
+                    date={formatDateForInput(
+                      selectedDate,
+                      selectedDoctor.clinic?.timezone || "America/Mexico_City"
+                    )}
                     appointmentDurationMin={getSelectedAppointmentTypeDuration()}
                     selectedSlot={selectedSlot}
                     onSlotSelect={handleSlotSelect}

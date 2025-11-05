@@ -13,9 +13,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, Building2, Clock } from "lucide-react";
 import { ClinicCreateDialog } from "@/components/clinics/clinic-create-dialog";
 import ClinicEditDialog from "@/components/clinics/clinic-edit-dialog";
+import { ClinicSchedulesManager } from "@/components/clinics/clinic-schedules-manager";
 
 interface ClinicsTableProps {
   clinics: Clinic[];
@@ -76,6 +77,17 @@ export function ClinicsTable({ clinics }: ClinicsTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
+                    <ClinicSchedulesManager
+                      clinic={clinic}
+                      trigger={
+                        <Button variant="outline" size="sm">
+                          <Clock className="h-4 w-4" />
+                        </Button>
+                      }
+                      onSuccess={() => {
+                        // page should revalidate if needed
+                      }}
+                    />
                     <ClinicEditDialog
                       clinic={clinic}
                       trigger={

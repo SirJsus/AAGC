@@ -141,7 +141,17 @@ export async function getDoctors() {
   const doctors = await prisma.doctor.findMany({
     where: whereClause,
     include: {
-      clinic: true,
+      clinic: {
+        include: {
+          schedules: {
+            where: {
+              isActive: true,
+              deletedAt: null,
+            },
+            orderBy: { weekday: "asc" },
+          },
+        },
+      },
       user: true,
       defaultRoom: true,
       schedules: {
@@ -155,7 +165,32 @@ export async function getDoctors() {
     orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
   });
 
-  return doctors;
+  // Map schedules to include clinic schedules as fallback
+  const doctorsWithSchedules = doctors.map((doctor) => {
+    let schedules = doctor.schedules;
+
+    // If doctor has no schedules, use clinic schedules
+    if (schedules.length === 0 && doctor.clinic?.schedules) {
+      schedules = doctor.clinic.schedules.map((clinicSchedule) => ({
+        id: `clinic-${clinicSchedule.id}`,
+        doctorId: doctor.id,
+        weekday: clinicSchedule.weekday,
+        startTime: clinicSchedule.startTime,
+        endTime: clinicSchedule.endTime,
+        isActive: clinicSchedule.isActive,
+        createdAt: clinicSchedule.createdAt,
+        updatedAt: clinicSchedule.updatedAt,
+        deletedAt: clinicSchedule.deletedAt,
+      }));
+    }
+
+    return {
+      ...doctor,
+      schedules,
+    };
+  });
+
+  return doctorsWithSchedules;
 }
 
 export async function getDoctor(id: string) {
