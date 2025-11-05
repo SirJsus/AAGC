@@ -272,12 +272,12 @@ export function UserEditDialog({
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
-                  placeholder="Ej: 5512345678"
-                  pattern="[0-9]{10,15}"
-                  title="Ingrese un número de teléfono válido (10-15 dígitos)"
+                  placeholder="Ej: +52 55 1234 5678"
+                  title="Ingrese un número de teléfono válido"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Opcional. 10-15 dígitos sin espacios ni guiones
+                  Opcional. Se aceptan formatos internacionales, espacios y
+                  guiones.
                 </p>
               </div>
 
