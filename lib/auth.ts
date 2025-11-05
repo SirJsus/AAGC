@@ -45,6 +45,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           clinicId: user.clinicId,
           clinicName: user.clinic?.name || null,
+          isActive: user.isActive,
         };
       },
     }),
@@ -64,6 +65,18 @@ export const authOptions: NextAuthOptions = {
         token.clinicName = user.clinicName;
         token.firstName = user.firstName;
         token.lastName = user.lastName;
+        token.isActive = user.isActive;
+      } else {
+        // Check if user is still active on each token refresh
+        if (token.sub) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { isActive: true },
+          });
+          if (dbUser) {
+            token.isActive = dbUser.isActive;
+          }
+        }
       }
       return token;
     },
@@ -75,6 +88,7 @@ export const authOptions: NextAuthOptions = {
         session.user.clinicName = token.clinicName as string | null;
         session.user.firstName = token.firstName as string;
         session.user.lastName = token.lastName as string;
+        session.user.isActive = token.isActive as boolean;
       }
       return session;
     },
