@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Clock, Plus, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { getDoctors, getDoctorByUserId } from "@/lib/actions/doctors";
+import { getClinics } from "@/lib/actions/clinics";
 import { useSession } from "next-auth/react";
 import {
   createDoctorSchedule,
@@ -62,6 +63,7 @@ const WEEKDAYS = [
 
 interface Doctor {
   id: string;
+  clinicId: string;
   user: {
     firstName: string;
     lastName: string;
@@ -69,6 +71,10 @@ interface Doctor {
     noSecondLastName: boolean;
     specialty: string | null;
     licenseNumber: string | null;
+  };
+  clinic: {
+    id: string;
+    name: string;
   };
 }
 
@@ -87,7 +93,14 @@ interface Exception {
   reason?: string | null;
 }
 
+interface Clinic {
+  id: string;
+  name: string;
+}
+
 export function DoctorSchedulesManager() {
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [selectedClinic, setSelectedClinic] = useState<string>("all");
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -142,6 +155,10 @@ export function DoctorSchedulesManager() {
         }
       })();
     } else {
+      // Load clinics for filtering (ADMIN only)
+      if (session?.user && session.user.role === "ADMIN") {
+        loadClinics();
+      }
       loadDoctors();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,6 +169,33 @@ export function DoctorSchedulesManager() {
       loadSchedulesAndExceptions();
     }
   }, [selectedDoctor]);
+
+  // Computed filtered doctors based on selected clinic
+  const filteredDoctors =
+    selectedClinic === "all"
+      ? doctors
+      : doctors.filter((doc) => doc.clinicId === selectedClinic);
+
+  // Reset selected doctor when clinic filter changes
+  useEffect(() => {
+    if (selectedClinic && selectedDoctor) {
+      // Check if selected doctor is still in filtered list
+      const doctorExists = filteredDoctors.some((d) => d.id === selectedDoctor);
+      if (!doctorExists) {
+        setSelectedDoctor("");
+      }
+    }
+  }, [selectedClinic, filteredDoctors, selectedDoctor]);
+
+  async function loadClinics() {
+    try {
+      const data = await getClinics();
+      setClinics(data);
+    } catch (error) {
+      console.error("Error loading clinics:", error);
+      toast.error("Error al cargar las clínicas");
+    }
+  }
 
   async function loadDoctors() {
     try {
@@ -336,6 +380,26 @@ export function DoctorSchedulesManager() {
     <div className="space-y-6">
       {/* Doctor selector: hidden for DOCTOR role (they see only their own record) */}
       <div className="flex items-end gap-4">
+        {/* Clinic filter for ADMIN */}
+        {session?.user && session.user.role === "ADMIN" && (
+          <div className="flex-1 space-y-2">
+            <Label>Clínica</Label>
+            <Select value={selectedClinic} onValueChange={setSelectedClinic}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todas las clínicas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las clínicas</SelectItem>
+                {clinics.map((clinic) => (
+                  <SelectItem key={clinic.id} value={clinic.id}>
+                    {clinic.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="flex-1 space-y-2">
           <Label>Medic</Label>
           {session?.user && session.user.role === "DOCTOR" ? (
@@ -356,10 +420,15 @@ export function DoctorSchedulesManager() {
                 <SelectValue placeholder="Seleccione un doctor" />
               </SelectTrigger>
               <SelectContent>
-                {doctors.map((doctor) => (
+                {filteredDoctors.map((doctor) => (
                   <SelectItem key={doctor.id} value={doctor.id}>
                     Dr. {doctor.user.firstName} {doctor.user.lastName}
                     {doctor.user.specialty && ` - ${doctor.user.specialty}`}
+                    {session?.user?.role === "ADMIN" && (
+                      <span className="text-muted-foreground text-xs ml-2">
+                        ({doctor.clinic.name})
+                      </span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
