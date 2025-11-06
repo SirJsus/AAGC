@@ -80,6 +80,28 @@ export function UserCreateDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validar contraseña
+    if (formData.password.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (!/[a-z]/.test(formData.password)) {
+      toast.error("La contraseña debe contener al menos una letra minúscula");
+      return;
+    }
+    if (!/[A-Z]/.test(formData.password)) {
+      toast.error("La contraseña debe contener al menos una letra mayúscula");
+      return;
+    }
+    if (!/[0-9]/.test(formData.password)) {
+      toast.error("La contraseña debe contener al menos un número");
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password)) {
+      toast.error("La contraseña debe contener al menos un carácter especial");
+      return;
+    }
+
     // Validación adicional para doctores
     if (formData.role === "DOCTOR") {
       if (!formData.specialty || !formData.licenseNumber) {
@@ -161,7 +183,7 @@ export function UserCreateDialog({
           Agregar Usuario
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Crear Nuevo Usuario</DialogTitle>
           <DialogDescription>
@@ -190,209 +212,281 @@ export function UserCreateDialog({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="general" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="usuario@ejemplo.com"
-                  title="Ingrese un correo electrónico válido"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ejemplo: doctor@clinica.com
-                </p>
-              </div>
+            <TabsContent value="general" className="mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Columna 1 */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      placeholder="usuario@ejemplo.com"
+                      title="Ingrese un correo electrónico válido"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Ejemplo: doctor@clinica.com
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña *</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    placeholder="Mínimo 6 caracteres"
-                    title="La contraseña debe tener al menos 6 caracteres"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nombre *</Label>
+                    <Input
+                      id="firstName"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, firstName: e.target.value })
+                      }
+                      placeholder="Ej: Juan"
+                      title="Ingrese el nombre del usuario"
+                      minLength={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Apellido Paterno *</Label>
+                    <Input
+                      id="lastName"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                      placeholder="Ej: Pérez"
+                      title="Ingrese el apellido paterno"
+                      minLength={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="secondLastName">
+                      Apellido Materno{" "}
+                      {!formData.noSecondLastName && (
+                        <span className="text-red-500">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      id="secondLastName"
+                      value={formData.secondLastName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          secondLastName: e.target.value,
+                        })
+                      }
+                      placeholder="Ej: García"
+                      disabled={formData.noSecondLastName}
+                      required={!formData.noSecondLastName}
+                      minLength={formData.noSecondLastName ? 0 : 2}
+                      title="Ingrese el apellido materno o marque que no tiene"
+                    />
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="noSecondLastName"
+                        checked={formData.noSecondLastName}
+                        onCheckedChange={(checked) => {
+                          setFormData({
+                            ...formData,
+                            noSecondLastName: checked as boolean,
+                            secondLastName: checked
+                              ? ""
+                              : formData.secondLastName,
+                          });
+                        }}
+                      />
+                      <label
+                        htmlFor="noSecondLastName"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        No tiene apellido materno
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      placeholder="Ej: +52 55 1234 5678"
+                      title="Ingrese un número de teléfono válido"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Opcional. Se aceptan formatos internacionales, espacios y
+                      guiones.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Mínimo 6 caracteres. Ejemplo: MiClave123
-                </p>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Nombre *</Label>
-                <Input
-                  id="firstName"
-                  required
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  placeholder="Ej: Juan"
-                  title="Ingrese el nombre del usuario"
-                  minLength={2}
-                />
-              </div>
+                {/* Columna 2 */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña *</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        minLength={8}
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                        placeholder="Mínimo 8 caracteres"
+                        title="La contraseña debe cumplir con los requisitos de seguridad"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                      <p className="text-xs text-blue-800 font-medium mb-2">
+                        Requisitos de la contraseña:
+                      </p>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        <li
+                          className={
+                            formData.password.length >= 8
+                              ? "text-green-600 font-medium"
+                              : ""
+                          }
+                        >
+                          • Al menos 8 caracteres{" "}
+                          {formData.password.length >= 8 && "✓"}
+                        </li>
+                        <li
+                          className={
+                            /[a-z]/.test(formData.password)
+                              ? "text-green-600 font-medium"
+                              : ""
+                          }
+                        >
+                          • Una letra minúscula{" "}
+                          {/[a-z]/.test(formData.password) && "✓"}
+                        </li>
+                        <li
+                          className={
+                            /[A-Z]/.test(formData.password)
+                              ? "text-green-600 font-medium"
+                              : ""
+                          }
+                        >
+                          • Una letra mayúscula{" "}
+                          {/[A-Z]/.test(formData.password) && "✓"}
+                        </li>
+                        <li
+                          className={
+                            /[0-9]/.test(formData.password)
+                              ? "text-green-600 font-medium"
+                              : ""
+                          }
+                        >
+                          • Un número {/[0-9]/.test(formData.password) && "✓"}
+                        </li>
+                        <li
+                          className={
+                            /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(
+                              formData.password
+                            )
+                              ? "text-green-600 font-medium"
+                              : ""
+                          }
+                        >
+                          • Un carácter especial (!@#$%^&*...){" "}
+                          {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(
+                            formData.password
+                          ) && "✓"}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Apellido Paterno *</Label>
-                <Input
-                  id="lastName"
-                  required
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  placeholder="Ej: Pérez"
-                  title="Ingrese el apellido paterno"
-                  minLength={2}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="secondLastName">
-                  Apellido Materno{" "}
-                  {!formData.noSecondLastName && (
-                    <span className="text-red-500">*</span>
-                  )}
-                </Label>
-                <Input
-                  id="secondLastName"
-                  value={formData.secondLastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, secondLastName: e.target.value })
-                  }
-                  placeholder="Ej: García"
-                  disabled={formData.noSecondLastName}
-                  required={!formData.noSecondLastName}
-                  minLength={formData.noSecondLastName ? 0 : 2}
-                  title="Ingrese el apellido materno o marque que no tiene"
-                />
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="noSecondLastName"
-                    checked={formData.noSecondLastName}
-                    onCheckedChange={(checked) => {
-                      setFormData({
-                        ...formData,
-                        noSecondLastName: checked as boolean,
-                        secondLastName: checked ? "" : formData.secondLastName,
-                      });
-                    }}
-                  />
-                  <label
-                    htmlFor="noSecondLastName"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    No tiene apellido materno
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  placeholder="Ej: +52 55 1234 5678"
-                  title="Ingrese un número de teléfono válido"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Opcional. Se aceptan formatos internacionales, espacios y
-                  guiones.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Rol *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => {
-                    setFormData({ ...formData, role: value as Role });
-                    // Si selecciona DOCTOR y estamos en la pestaña general, cambiar a la pestaña de doctor
-                    if (value === "DOCTOR") {
-                      // No cambiar automáticamente, dejar que el usuario navegue
-                    }
-                  }}
-                >
-                  <SelectTrigger id="role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {roleLabels[role] || role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.role === "DOCTOR" && (
-                  <p className="text-sm text-muted-foreground">
-                    Complete también la pestaña "Datos de Doctor"
-                  </p>
-                )}
-              </div>
-
-              {currentUserRole === "ADMIN" && (
-                <div className="space-y-2">
-                  <Label htmlFor="clinicId">
-                    Clínica{" "}
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Rol *</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, role: value as Role });
+                        // Si selecciona DOCTOR y estamos en la pestaña general, cambiar a la pestaña de doctor
+                        if (value === "DOCTOR") {
+                          // No cambiar automáticamente, dejar que el usuario navegue
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {roleLabels[role] || role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     {formData.role === "DOCTOR" && (
-                      <span className="text-red-500">*</span>
+                      <p className="text-sm text-muted-foreground">
+                        Complete también la pestaña "Datos de Doctor"
+                      </p>
                     )}
-                  </Label>
-                  <Select
-                    value={formData.clinicId || "none"}
-                    onValueChange={(value) =>
-                      setFormData({
-                        ...formData,
-                        clinicId: value === "none" ? "" : value,
-                        roomId: "",
-                      })
-                    }
-                  >
-                    <SelectTrigger id="clinicId">
-                      <SelectValue placeholder="Seleccionar clínica (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin clínica asignada</SelectItem>
-                      {clinics.map((clinic) => (
-                        <SelectItem key={clinic.id} value={clinic.id}>
-                          {clinic.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  </div>
+
+                  {currentUserRole === "ADMIN" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="clinicId">
+                        Clínica{" "}
+                        {formData.role === "DOCTOR" && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </Label>
+                      <Select
+                        value={formData.clinicId || "none"}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            clinicId: value === "none" ? "" : value,
+                            roomId: "",
+                          })
+                        }
+                      >
+                        <SelectTrigger id="clinicId">
+                          <SelectValue placeholder="Seleccionar clínica (opcional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            Sin clínica asignada
+                          </SelectItem>
+                          {clinics.map((clinic) => (
+                            <SelectItem key={clinic.id} value={clinic.id}>
+                              {clinic.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </TabsContent>
 
             <TabsContent value="doctor" className="space-y-4 mt-4">
@@ -407,12 +501,12 @@ export function UserCreateDialog({
                       onChange={(e) =>
                         setFormData({ ...formData, specialty: e.target.value })
                       }
-                      placeholder="Ej: Cardiología"
+                      placeholder="Ej: Cardióloga"
                       minLength={3}
                       title="Ingrese la especialidad médica del doctor"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Ejemplos: Cardiología, Pediatría, Traumatología, Medicina
+                      Ejemplos: Cardióloga, Pediatría, Traumatología, Medicina
                       General
                     </p>
                   </div>

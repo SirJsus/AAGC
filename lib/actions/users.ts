@@ -11,7 +11,16 @@ import bcrypt from "bcryptjs";
 
 const createUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener al menos 8 caracteres")
+    .regex(/[a-z]/, "Debe contener al menos una letra minúscula")
+    .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula")
+    .regex(/[0-9]/, "Debe contener al menos un número")
+    .regex(
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
+      "Debe contener al menos un carácter especial"
+    ),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   secondLastName: z.string().optional(),
@@ -370,8 +379,11 @@ export async function resetUserPassword(userId: string) {
     throw new Error("Cannot reset password for this user");
   }
 
-  // Generate temporary password
-  const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
+  // Generate temporary password that meets security requirements
+  // Format: TempXxxxYyyy1! (uppercase, lowercase, number, special char, 8+ chars)
+  const randomPart = Math.random().toString(36).slice(-4); // lowercase letters
+  const randomNum = Math.floor(Math.random() * 90 + 10); // 2 digit number
+  const tempPassword = `Temp${randomPart.charAt(0).toUpperCase()}${randomPart.slice(1)}${randomNum}!`;
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
   await prisma.user.update({
