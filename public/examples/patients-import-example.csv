@@ -1,5 +1,8 @@
 
-firstName,lastName,secondLastName,phone,email,birthDate,gender,address,emergencyContact,notes
-Juan,García,Pérez,+52 55 1234 5678,juan.garcia@email.com,1980-05-15,MALE,"Av. Reforma 123, Col. Centro, CDMX","María García (Esposa) - +52 55 1234 5679",Paciente con historial de diabetes
-María,López,Martínez,+52 55 2345 6789,maria.lopez@email.com,1992-08-22,FEMALE,"Calle Juárez 456, Col. Roma, CDMX","Pedro López (Hermano) - +52 55 2345 6790",Alérgica a la penicilina
-Carlos,Hernández,,+52 55 3456 7890,carlos.hernandez@email.com,1975-12-10,MALE,"Av. Insurgentes 789, Col. Condesa, CDMX","Ana Hernández (Esposa) - +52 55 3456 7891",
+firstName,lastName,secondLastName,noSecondLastName,phone,email,birthDate,gender,address,emergencyContactFirstName,emergencyContactLastName,emergencyContactSecondLastName,emergencyContactNoSecondLastName,emergencyContactPhone,primaryDoctorFirstName,primaryDoctorLastName,primaryDoctorSecondLastName,primaryDoctorNoSecondLastName,primaryDoctorPhone,notes,pendingCompletion,customIdClinic,customIdDoctor,customIdLastName,customIdNumber
+Juan,García,Pérez,false,+52 55 1234 5678,juan.garcia@email.com,1980-05-15,MALE,"Av. Reforma 123, Col. Centro, CDMX",María,García,López,false,+52 55 1234 5679,Dr. Roberto,Sánchez,Ruiz,false,+52 55 9999 0001,Paciente con historial de diabetes,false,CE,EH,G,1
+María,López,Martínez,false,+52 55 2345 6789,maria.lopez@email.com,1992-08-22,FEMALE,"Calle Juárez 456, Col. Roma, CDMX",Pedro,López,Martínez,false,+52 55 2345 6790,,,,,Alérgica a la penicilina,false,CE,ML,L,2
+Carlos,Hernández,,true,+52 55 3456 7890,carlos.hernandez@email.com,1975-12-10,MALE,"Av. Insurgentes 789, Col. Condesa, CDMX",Ana,Hernández,Torres,false,+52 55 3456 7891,,,,,,,false,CE,EH,H,3
+Pedro,Ramírez,Silva,false,+52 55 4567 8901,,,,,,,,,,,,,,,true,CE,RS,R,4
+
+

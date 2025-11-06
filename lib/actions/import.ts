@@ -62,10 +62,26 @@ export async function createImportJob(data: CreateImportJobInput) {
     throw new Error("No autorizado");
   }
 
+  // Determinar la clínica a usar
+  let clinicId: string | null = data.clinicId || null;
+
+  // Si no se proporciona clinicId, usar la del usuario (si no es admin)
+  if (!clinicId) {
+    if (session.user.role === Role.ADMIN) {
+      throw new Error("Los administradores deben especificar una clínica");
+    }
+    clinicId = session.user.clinicId;
+  }
+
+  // Si es admin, validar que tenga acceso a la clínica (opcional, por seguridad)
+  if (session.user.role !== Role.ADMIN && clinicId !== session.user.clinicId) {
+    throw new Error("No tienes permiso para importar datos a esta clínica");
+  }
+
   // Crear el job inicial
   const job = await prisma.importJob.create({
     data: {
-      clinicId: data.clinicId || null,
+      clinicId: clinicId,
       type: data.type,
       status: "PENDING",
       fileName: data.fileName,
@@ -191,10 +207,28 @@ async function importPatient(
     throw new Error("Clinic ID is required for patient import");
   }
 
-  // Validar campos requeridos
+  // Validar campos requeridos MÍNIMOS (para modo básico/temporal)
   if (!data.firstName || !data.lastName || !data.phone) {
     throw new Error("Missing required fields: firstName, lastName, phone");
   }
+
+  // Validar que se proporcionen las 4 partes del customId (OBLIGATORIO)
+  if (
+    !data.customIdClinic ||
+    !data.customIdDoctor ||
+    !data.customIdLastName ||
+    data.customIdNumber === undefined
+  ) {
+    throw new Error(
+      "Missing required ID fields: customIdClinic, customIdDoctor, customIdLastName, customIdNumber are mandatory"
+    );
+  }
+
+  // Determinar si es paciente temporal o completo
+  // Es temporal si SOLO tiene los campos básicos o si explícitamente se marca
+  const isTemporary =
+    data.pendingCompletion === true ||
+    (!data.birthDate && !data.gender && !data.address);
 
   // Buscar doctor si se proporciona (buscamos por el licenseNumber del usuario asociado)
   let doctorId: string | null = null;
@@ -214,28 +248,19 @@ async function importPatient(
     doctorId = doctor?.id || null;
   }
 
-  // Generar customId si no se proporciona
-  let customId = data.customId;
-  if (!customId) {
-    const clinic = await prisma.clinic.findUnique({
-      where: { id: clinicId },
-    });
+  // Construir customId desde las 4 partes OBLIGATORIAS
+  const clinicPart = data.customIdClinic.toString().trim();
+  const doctorPart = data.customIdDoctor.toString().trim();
+  const lastNamePart = data.customIdLastName.toString().trim().toUpperCase();
+  const numberPart = data.customIdNumber;
 
-    const doctor = doctorId
-      ? await prisma.doctor.findUnique({
-          where: { id: doctorId },
-        })
-      : null;
+  // Formatear el número con padding a 4 dígitos
+  const formattedNumber =
+    typeof numberPart === "number"
+      ? numberPart.toString().padStart(3, "0")
+      : numberPart.toString().padStart(3, "0");
 
-    const count = await prisma.patient.count({
-      where: { clinicId },
-    });
-
-    // Nota: el campo correcto en schema.prisma es `clinicAcronym`
-    const clinicAcronym = clinic?.clinicAcronym || "P";
-    const doctorAcronym = doctor?.acronym || "G";
-    customId = `${clinicAcronym}${doctorAcronym}${(count + 1).toString().padStart(4, "0")}`;
-  }
+  const customId = `${clinicPart}${doctorPart}${lastNamePart}${formattedNumber}`;
 
   // Verificar que el customId no exista
   const existing = await prisma.patient.findUnique({
@@ -246,22 +271,45 @@ async function importPatient(
     throw new Error(`Patient with customId ${customId} already exists`);
   }
 
-  // Crear el paciente
+  // Crear el paciente con todos los campos disponibles
   const patient = await prisma.patient.create({
     data: {
       customId,
+      customDoctorAcronym: data.customDoctorAcronym || null,
       firstName: data.firstName,
       lastName: data.lastName,
       secondLastName: data.secondLastName || null,
+      noSecondLastName:
+        data.noSecondLastName === true || data.noSecondLastName === "true",
       phone: data.phone,
       email: data.email || null,
       birthDate: data.birthDate ? new Date(data.birthDate) : null,
       gender: data.gender || null,
       address: data.address || null,
-      emergencyContactPhone: data.emergencyContact || null,
+
+      // Contacto de emergencia estructurado
+      emergencyContactFirstName: data.emergencyContactFirstName || null,
+      emergencyContactLastName: data.emergencyContactLastName || null,
+      emergencyContactSecondLastName:
+        data.emergencyContactSecondLastName || null,
+      emergencyContactNoSecondLastName:
+        data.emergencyContactNoSecondLastName === true ||
+        data.emergencyContactNoSecondLastName === "true",
+      emergencyContactPhone: data.emergencyContactPhone || null,
+
+      // Doctor primario externo (no el doctor asignado de la clínica)
+      primaryDoctorFirstName: data.primaryDoctorFirstName || null,
+      primaryDoctorLastName: data.primaryDoctorLastName || null,
+      primaryDoctorSecondLastName: data.primaryDoctorSecondLastName || null,
+      primaryDoctorNoSecondLastName:
+        data.primaryDoctorNoSecondLastName === true ||
+        data.primaryDoctorNoSecondLastName === "true",
+      primaryDoctorPhone: data.primaryDoctorPhone || null,
+
       notes: data.notes || null,
       clinicId,
       doctorId,
+      pendingCompletion: isTemporary,
     },
   });
 
@@ -323,13 +371,19 @@ async function importDoctor(
       firstName: data.firstName,
       lastName: data.lastName,
       secondLastName: data.secondLastName || null,
-      noSecondLastName: data.noSecondLastName || false,
+      noSecondLastName:
+        data.noSecondLastName === true || data.noSecondLastName === "true",
       phone: data.phone || null,
+      address: data.address || null,
+      dateOfBirth:
+        data.dateOfBirth || data.birthDate
+          ? new Date(data.dateOfBirth || data.birthDate)
+          : null,
       role: Role.DOCTOR,
       clinicId,
       specialty: data.specialty || null,
       licenseNumber: licenseNumber,
-      isActive: true,
+      isActive: data.isActive !== false && data.isActive !== "false",
     },
   });
 
@@ -344,14 +398,27 @@ async function importDoctor(
     acronym = `${firstInitial}${lastInitial}${secondLastInitial}`;
   }
 
+  // Buscar roomId si se proporciona nombre de consultorio
+  let roomId: string | null = data.roomId || null;
+  if (!roomId && data.roomName) {
+    const room = await prisma.room.findFirst({
+      where: {
+        clinicId,
+        name: data.roomName,
+        deletedAt: null,
+      },
+    });
+    roomId = room?.id || null;
+  }
+
   // Crear el registro en Doctor apuntando al User creado
   const doctor = await prisma.doctor.create({
     data: {
       userId: user.id,
       clinicId,
       acronym,
-      roomId: data.roomId || null,
-      isActive: true,
+      roomId,
+      isActive: data.isActive !== false && data.isActive !== "false",
     },
   });
 
@@ -428,8 +495,34 @@ async function importAppointment(
     throw new Error(`Doctor with license ${data.doctorLicense} not found`);
   }
 
-  // Verificar conflictos
-  const conflict = await prisma.appointment.findFirst({
+  // Buscar appointmentType si se proporciona
+  let appointmentTypeId: string | null = data.appointmentTypeId || null;
+  if (!appointmentTypeId && data.appointmentTypeName) {
+    const appointmentType = await prisma.appointmentType.findFirst({
+      where: {
+        clinicId,
+        name: data.appointmentTypeName,
+        deletedAt: null,
+      },
+    });
+    appointmentTypeId = appointmentType?.id || null;
+  }
+
+  // Buscar room si se proporciona
+  let roomId: string | null = data.roomId || null;
+  if (!roomId && data.roomName) {
+    const room = await prisma.room.findFirst({
+      where: {
+        clinicId,
+        name: data.roomName,
+        deletedAt: null,
+      },
+    });
+    roomId = room?.id || null;
+  }
+
+  // Verificar conflictos con doctor
+  const doctorConflict = await prisma.appointment.findFirst({
     where: {
       doctorId: doctor.id,
       date: data.date,
@@ -441,9 +534,40 @@ async function importAppointment(
     },
   });
 
-  if (conflict) {
-    throw new Error(`Appointment conflict at ${data.date} ${data.startTime}`);
+  if (doctorConflict) {
+    throw new Error(
+      `Doctor has appointment conflict at ${data.date} ${data.startTime}`
+    );
   }
+
+  // Verificar conflictos con sala si se asignó
+  if (roomId) {
+    const roomConflict = await prisma.appointment.findFirst({
+      where: {
+        roomId,
+        date: data.date,
+        startTime: data.startTime,
+        deletedAt: null,
+        status: {
+          notIn: ["CANCELLED", "NO_SHOW"],
+        },
+      },
+    });
+
+    if (roomConflict) {
+      throw new Error(
+        `Room has appointment conflict at ${data.date} ${data.startTime}`
+      );
+    }
+  }
+
+  // Preparar datos de pago
+  const paymentMethod = data.paymentMethod || null;
+  const paymentConfirmed =
+    data.paymentConfirmed === true || data.paymentConfirmed === "true";
+
+  // Preparar precio personalizado si existe
+  const customPrice = data.customPrice ? parseFloat(data.customPrice) : null;
 
   // Crear la cita
   const appointment = await prisma.appointment.create({
@@ -451,12 +575,20 @@ async function importAppointment(
       patientId: patient.id,
       doctorId: doctor.id,
       clinicId,
+      roomId,
+      appointmentTypeId,
+      customReason: data.customReason || null,
+      customPrice,
       date: data.date,
       startTime: data.startTime,
       endTime: data.endTime,
       status: data.status || "PENDING",
+      paymentMethod,
+      paymentConfirmed,
       notes: data.notes || null,
-      customReason: data.customReason || null,
+      cancelReason: data.cancelReason || null,
+      cancelledAt: data.cancelledAt ? new Date(data.cancelledAt) : null,
+      cancelledBy: data.cancelledBy || null,
     },
   });
 

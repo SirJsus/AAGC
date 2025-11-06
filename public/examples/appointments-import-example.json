@@ -1,0 +1,54 @@
+[
+  {
+    "patientCustomId": "CEH0001",
+    "doctorLicense": "MED-001-CDM",
+    "date": "2025-11-10",
+    "startTime": "09:00",
+    "endTime": "09:30",
+    "appointmentTypeName": "Consulta General",
+    "roomName": "Consultorio A",
+    "customReason": "Chequeo rutinario",
+    "customPrice": 500,
+    "status": "CONFIRMED",
+    "paymentMethod": "CASH",
+    "paymentConfirmed": true,
+    "notes": "Primera consulta del año"
+  },
+  {
+    "patientCustomId": "CEH0002",
+    "doctorLicense": "MED-002-CDM",
+    "date": "2025-11-10",
+    "startTime": "10:00",
+    "endTime": "10:45",
+    "appointmentTypeName": "Consulta Especializada",
+    "roomName": "Consultorio B",
+    "customPrice": 800,
+    "status": "PENDING",
+    "notes": "Evaluación cardiológica"
+  },
+  {
+    "patientCustomId": "CEH0003",
+    "doctorLicense": "MED-001-CDM",
+    "date": "2025-11-11",
+    "startTime": "14:00",
+    "endTime": "14:30",
+    "appointmentTypeName": "Seguimiento",
+    "roomName": "Consultorio A",
+    "customReason": "Revisión de resultados",
+    "customPrice": 350,
+    "status": "COMPLETED",
+    "paymentMethod": "CREDIT_CARD",
+    "paymentConfirmed": true
+  },
+  {
+    "patientCustomId": "CEH0001",
+    "doctorLicense": "MED-003-CDM",
+    "date": "2025-11-12",
+    "startTime": "11:00",
+    "endTime": "11:30",
+    "appointmentTypeName": "Consulta General",
+    "customPrice": 450,
+    "status": "CANCELLED",
+    "cancelReason": "Paciente canceló por motivos personales"
+  }
+]

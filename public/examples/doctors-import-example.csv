@@ -1,5 +1,5 @@
 
-firstName,lastName,license,specialty,phone,email,acronym
-Eduardo,Hernández,MED-001-CDM,Cardiología,+52 55 2345 6789,eduardo.hernandez@email.com,EH
-María,López,MED-002-CDM,Cardiología Pediátrica,+52 55 3456 7890,maria.lopez@email.com,ML
-Roberto,Silva,MED-003-CDM,Medicina General,+52 55 4567 8901,roberto.silva@email.com,RS
+firstName,lastName,secondLastName,noSecondLastName,license,specialty,phone,email,address,dateOfBirth,acronym,roomName,isActive
+Eduardo,Hernández,Ruiz,false,MED-001-CDM,Cardiología,+52 55 2345 6789,eduardo.hernandez@email.com,"Consultorio 201, Hospital ABC",1975-03-15,EHR,Consultorio A,true
+María,López,,true,MED-002-CDM,Cardiología Pediátrica,+52 55 3456 7890,maria.lopez@email.com,,1980-07-22,ML,Consultorio B,true
+Roberto,Silva,García,false,MED-003-CDM,Medicina General,+52 55 4567 8901,roberto.silva@email.com,,1985-11-30,RSG,,true

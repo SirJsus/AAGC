@@ -1,0 +1,5 @@
+patientCustomId,doctorLicense,date,startTime,endTime,appointmentTypeName,roomName,customReason,customPrice,status,paymentMethod,paymentConfirmed,notes
+CEH0001,MED-001-CDM,2025-11-10,09:00,09:30,Consulta General,Consultorio A,Chequeo rutinario,500,CONFIRMED,CASH,true,Primera consulta del año
+CEH0002,MED-002-CDM,2025-11-10,10:00,10:45,Consulta Especializada,Consultorio B,,800,PENDING,,,Evaluación cardiológica
+CEH0003,MED-001-CDM,2025-11-11,14:00,14:30,Seguimiento,Consultorio A,Revisión de resultados,350,COMPLETED,CREDIT_CARD,true,
+CEH0001,MED-003-CDM,2025-11-12,11:00,11:30,Consulta General,,,450,CANCELLED,,,Paciente canceló por motivos personales
