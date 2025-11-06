@@ -39,7 +39,7 @@ export default withAuth(
 
     // Role-based access control
     if (pathname.startsWith("/clinics")) {
-      if (userRole !== Role.ADMIN) {
+      if (userRole !== Role.ADMIN && userRole !== Role.CLINIC_ADMIN) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }

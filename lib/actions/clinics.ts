@@ -21,8 +21,8 @@ const createClinicSchema = z.object({
 export async function createClinic(data: z.infer<typeof createClinicSchema>) {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user || !Permissions.canManageClinics(session.user)) {
-    throw new Error("Unauthorized");
+  if (!session?.user || !Permissions.canCreateClinics(session.user)) {
+    throw new Error("Only ADMIN can create clinics");
   }
 
   const validatedData = createClinicSchema.parse(data);
@@ -54,6 +54,11 @@ export async function updateClinic(
     throw new Error("Unauthorized");
   }
 
+  // CLINIC_ADMIN can only edit their own clinic
+  if (!Permissions.canAccessClinic(session.user, id)) {
+    throw new Error("You can only edit your own clinic");
+  }
+
   const validatedData = createClinicSchema.parse(data);
 
   const clinic = await prisma.clinic.update({
@@ -81,6 +86,11 @@ export async function deleteClinic(id: string) {
     throw new Error("Unauthorized");
   }
 
+  // CLINIC_ADMIN cannot delete clinics
+  if (session.user.role !== "ADMIN") {
+    throw new Error("Only ADMIN can delete clinics");
+  }
+
   await prisma.clinic.update({
     where: { id },
     data: {
@@ -97,6 +107,11 @@ export async function setClinicActive(id: string, isActive: boolean) {
 
   if (!session?.user || !Permissions.canManageClinics(session.user)) {
     throw new Error("Unauthorized");
+  }
+
+  // CLINIC_ADMIN cannot change clinic status
+  if (session.user.role !== "ADMIN") {
+    throw new Error("Only ADMIN can change clinic status");
   }
 
   const data: any = { isActive };
@@ -122,18 +137,26 @@ export async function getClinics() {
     throw new Error("Unauthorized");
   }
 
-  if (Permissions.canManageClinics(session.user)) {
-    // Admins: return all clinics, ordering active ones first, then by name
+  if (!Permissions.canManageClinics(session.user)) {
+    throw new Error("Unauthorized");
+  }
+
+  // ADMIN: return all clinics
+  if (session.user.role === "ADMIN") {
     return prisma.clinic.findMany({
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    });
-  } else {
-    // Non-admin: return only the clinic associated with the user (even if inactive)
-    return prisma.clinic.findMany({
-      where: {
-        id: session.user.clinicId || "",
-      },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
     });
   }
+
+  // CLINIC_ADMIN: return only their clinic
+  if (!session.user.clinicId) {
+    return [];
+  }
+
+  return prisma.clinic.findMany({
+    where: {
+      id: session.user.clinicId,
+    },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+  });
 }

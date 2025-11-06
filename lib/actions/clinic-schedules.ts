@@ -29,6 +29,11 @@ export async function createClinicSchedule(
     throw new Error("Unauthorized");
   }
 
+  // CLINIC_ADMIN can only create schedules for their own clinic
+  if (!Permissions.canAccessClinic(session.user, data.clinicId)) {
+    throw new Error("You can only manage schedules for your own clinic");
+  }
+
   const validatedData = createClinicScheduleSchema.parse(data);
 
   // Validate time range
@@ -108,6 +113,11 @@ export async function updateClinicSchedule(
     throw new Error("Unauthorized");
   }
 
+  // CLINIC_ADMIN can only update schedules for their own clinic
+  if (!Permissions.canAccessClinic(session.user, data.clinicId)) {
+    throw new Error("You can only manage schedules for your own clinic");
+  }
+
   const validatedData = createClinicScheduleSchema.parse(data);
 
   // Validate time range
@@ -165,6 +175,21 @@ export async function deleteClinicSchedule(id: string) {
 
   if (!session?.user || !Permissions.canManageClinics(session.user)) {
     throw new Error("Unauthorized");
+  }
+
+  // Get the schedule to check clinic ownership
+  const schedule = await prisma.clinicSchedule.findUnique({
+    where: { id },
+    select: { clinicId: true },
+  });
+
+  if (!schedule) {
+    throw new Error("Schedule not found");
+  }
+
+  // CLINIC_ADMIN can only delete schedules for their own clinic
+  if (!Permissions.canAccessClinic(session.user, schedule.clinicId)) {
+    throw new Error("You can only manage schedules for your own clinic");
   }
 
   await prisma.clinicSchedule.update({

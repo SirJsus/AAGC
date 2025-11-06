@@ -37,7 +37,12 @@ export async function createAppointmentType(data: z.infer<typeof createAppointme
   })
 
   revalidatePath("/appointment-types")
-  return appointmentType
+  
+  // Convert Decimal to number for client component compatibility
+  return {
+    ...appointmentType,
+    price: appointmentType.price.toNumber(),
+  }
 }
 
 export async function updateAppointmentType(id: string, data: z.infer<typeof createAppointmentTypeSchema>) {
@@ -62,7 +67,12 @@ export async function updateAppointmentType(id: string, data: z.infer<typeof cre
   })
 
   revalidatePath("/appointment-types")
-  return appointmentType
+  
+  // Convert Decimal to number for client component compatibility
+  return {
+    ...appointmentType,
+    price: appointmentType.price.toNumber(),
+  }
 }
 
 export async function deleteAppointmentType(id: string) {

@@ -66,9 +66,9 @@ import {
   extractDateInClinicTimezone,
 } from "@/lib/utils/timezone";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AppointmentTypeForClient } from "@/types/appointments";
 
-interface AppointmentTypeForClient extends Omit<AppointmentType, "price"> {
-  price: number;
+interface AppointmentTypeWithClinic extends AppointmentTypeForClient {
   clinic?: Clinic | null;
 }
 
@@ -140,7 +140,7 @@ export function AppointmentBookingDialog({
 
   // Appointment details
   const [appointmentTypes, setAppointmentTypes] = useState<
-    AppointmentTypeForClient[]
+    AppointmentTypeWithClinic[]
   >([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [clinics, setClinics] = useState<Clinic[]>([]);

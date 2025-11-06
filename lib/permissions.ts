@@ -7,6 +7,10 @@ export interface PermissionCheck {
 
 export class Permissions {
   static canManageClinics(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
+  static canCreateClinics(user: PermissionCheck): boolean {
     return user.role === Role.ADMIN;
   }
 

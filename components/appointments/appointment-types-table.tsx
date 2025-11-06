@@ -1,57 +1,80 @@
+"use client";
 
-"use client"
+import { useState } from "react";
+import { Clinic } from "@prisma/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Clock, DollarSign, Trash2, FileText } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { deleteAppointmentType } from "@/lib/actions/appointment-types";
+import { AppointmentTypeEditDialog } from "./appointment-type-edit-dialog";
+import { AppointmentTypeForClient } from "@/types/appointments";
 
-import { useState } from "react"
-import { AppointmentType, Clinic } from "@prisma/client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Clock, DollarSign, Trash2, FileText } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
-import { deleteAppointmentType } from "@/lib/actions/appointment-types"
-import { AppointmentTypeEditDialog } from "./appointment-type-edit-dialog"
-
-interface AppointmentTypeWithClinic extends AppointmentType {
-  clinic?: Clinic | null
+interface AppointmentTypeWithClinic extends AppointmentTypeForClient {
+  clinic?: Clinic | null;
 }
 
 interface AppointmentTypesTableProps {
-  appointmentTypes: AppointmentTypeWithClinic[]
-  clinics: Clinic[]
-  userRole?: string
-  onUpdate: () => void
+  appointmentTypes: AppointmentTypeWithClinic[];
+  clinics: Clinic[];
+  userRole?: string;
+  onUpdate: () => void;
 }
 
-export function AppointmentTypesTable({ 
-  appointmentTypes, 
-  clinics, 
+export function AppointmentTypesTable({
+  appointmentTypes,
+  clinics,
   userRole,
-  onUpdate 
+  onUpdate,
 }: AppointmentTypesTableProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    setDeletingId(id)
+    setDeletingId(id);
     try {
-      await deleteAppointmentType(id)
-      toast.success("Tipo de cita eliminado exitosamente")
-      onUpdate()
+      await deleteAppointmentType(id);
+      toast.success("Tipo de cita eliminado exitosamente");
+      onUpdate();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al eliminar tipo de cita")
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Error al eliminar tipo de cita"
+      );
     } finally {
-      setDeletingId(null)
+      setDeletingId(null);
     }
-  }
+  };
 
   if (appointmentTypes.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
         <p>No hay tipos de citas configurados</p>
-        <p className="text-sm mt-2">Crea tipos de cita para estandarizar tus servicios</p>
+        <p className="text-sm mt-2">
+          Crea tipos de cita para estandarizar tus servicios
+        </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -86,9 +109,9 @@ export function AppointmentTypesTable({
               <TableCell>
                 <div className="flex items-center gap-1 font-medium">
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  {Number(type.price).toLocaleString('es-MX', { 
+                  {Number(type.price).toLocaleString("es-MX", {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2 
+                    maximumFractionDigits: 2,
                   })}
                 </div>
               </TableCell>
@@ -117,11 +140,11 @@ export function AppointmentTypesTable({
                     userRole={userRole}
                     onSuccess={onUpdate}
                   />
-                  
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         disabled={deletingId === type.id}
                       >
@@ -132,8 +155,9 @@ export function AppointmentTypesTable({
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción eliminará el tipo de cita "{type.name}". 
-                          Las citas existentes que usen este tipo no se verán afectadas.
+                          Esta acción eliminará el tipo de cita "{type.name}".
+                          Las citas existentes que usen este tipo no se verán
+                          afectadas.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -154,5 +178,5 @@ export function AppointmentTypesTable({
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }

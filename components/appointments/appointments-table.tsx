@@ -1,15 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Appointment,
-  Patient,
-  Doctor,
-  Clinic,
-  Room,
-  AppointmentType,
-  AppointmentStatus,
-} from "@prisma/client";
+import { useState, useEffect, useMemo } from "react";
+import { AppointmentStatus } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Calendar, Clock, Eye } from "lucide-react";
+import { Trash2, Calendar, Clock, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   formatDateForDisplay,
@@ -36,26 +28,10 @@ import { getStatusLabel } from "@/lib/utils/appointment-state";
 import { useSession } from "next-auth/react";
 import { Permissions } from "@/lib/permissions";
 import { updateAppointmentStatus } from "@/lib/actions/appointments";
-
-interface AppointmentTypeForClient extends Omit<AppointmentType, "price"> {
-  price: number;
-}
-
-interface AppointmentWithRelations extends Omit<Appointment, "customPrice"> {
-  customPrice?: number | null;
-  patient: Patient;
-  doctor: Doctor & {
-    user: {
-      firstName: string;
-      lastName: string;
-      secondLastName?: string;
-      specialty: string;
-    };
-  };
-  clinic?: Clinic | null;
-  room?: Room | null;
-  appointmentType?: AppointmentTypeForClient | null;
-}
+import { AppointmentWithRelations } from "@/types/appointments";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+import { startOfWeek, endOfWeek } from "date-fns";
 
 interface AppointmentsTableProps {
   appointments: AppointmentWithRelations[];
@@ -64,13 +40,63 @@ interface AppointmentsTableProps {
 export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
   const router = useRouter();
   const { data: session } = useSession() || {};
+
+  // State for date range filter - defaults to current week
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const today = new Date();
+    return {
+      from: startOfWeek(today, { weekStartsOn: 0 }), // Sunday
+      to: endOfWeek(today, { weekStartsOn: 0 }), // Saturday
+    };
+  });
+
+  // Function to check if a date falls within the selected range
+  const isDateInRange = (
+    appointmentDate: Date | string,
+    range: DateRange | undefined
+  ): boolean => {
+    if (!range?.from) return true; // If no range selected, show all
+
+    const dateObj =
+      typeof appointmentDate === "string"
+        ? new Date(appointmentDate)
+        : appointmentDate;
+    const dateOnly = new Date(
+      dateObj.getFullYear(),
+      dateObj.getMonth(),
+      dateObj.getDate()
+    );
+    const fromDate = new Date(
+      range.from.getFullYear(),
+      range.from.getMonth(),
+      range.from.getDate()
+    );
+
+    if (!range.to) {
+      // Only 'from' date selected, show appointments on that day
+      return dateOnly.getTime() === fromDate.getTime();
+    }
+
+    const toDate = new Date(
+      range.to.getFullYear(),
+      range.to.getMonth(),
+      range.to.getDate()
+    );
+    return dateOnly >= fromDate && dateOnly <= toDate;
+  };
+
   // If the user is a NURSE, restrict displayed appointments to today's date
-  const displayedAppointments: AppointmentWithRelations[] = (() => {
+  // Also apply date range filter for all users
+  const displayedAppointments: AppointmentWithRelations[] = useMemo(() => {
     const all = appointments || [];
+
+    // First, filter by date range
+    const dateFiltered = all.filter((a) => isDateInRange(a.date, dateRange));
+
     try {
       if (session?.user?.role === "NURSE") {
         const today = getCurrentDateInTimezone(); // YYYY-MM-DD in clinic timezone
-        return all.filter((a) => {
+        return dateFiltered.filter((a) => {
           // appointment.date can be string or Date
           const dateObj =
             typeof a.date === "string" ? new Date(a.date) : a.date;
@@ -81,11 +107,11 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
     } catch (e) {
       // If anything goes wrong, fall back to showing all (avoid breaking UI)
       console.error("Error filtering appointments for NURSE:", e);
-      return all;
+      return dateFiltered;
     }
 
-    return all;
-  })();
+    return dateFiltered;
+  }, [appointments, dateRange, session?.user?.role]);
 
   // Return a patient ID formatted according to the viewer's role.
   // Example: "ABC-DEF-G1" -> for NURSE returns "DEF-G1". Others see full ID.
@@ -200,7 +226,7 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             Appointments ({displayedAppointments?.length || 0})
@@ -208,6 +234,34 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
           {session?.user && Permissions.canCreateAppointments(session.user) && (
             <AppointmentBookingDialog onSuccess={handleAppointmentCreated} />
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <DateRangePicker
+            value={dateRange as DateRange}
+            onChange={(range) => setDateRange(range)}
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const today = new Date();
+              setDateRange({
+                from: startOfWeek(today, { weekStartsOn: 0 }),
+                to: endOfWeek(today, { weekStartsOn: 0 }),
+              });
+            }}
+          >
+            Esta semana
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDateRange(undefined)}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Limpiar filtro
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

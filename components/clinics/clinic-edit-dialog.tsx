@@ -23,22 +23,26 @@ import {
 import { toast } from "sonner";
 import { updateClinic, setClinicActive } from "@/lib/actions/clinics";
 import { Switch } from "@/components/ui/switch";
-import { Clinic } from "@prisma/client";
+import { Clinic, Role } from "@prisma/client";
 import { Pencil } from "lucide-react";
 
 interface ClinicEditDialogProps {
   clinic: Clinic;
+  userRole?: Role;
   trigger?: React.ReactNode;
   onSuccess?: () => void;
 }
 
 export function ClinicEditDialog({
   clinic,
+  userRole,
   trigger,
   onSuccess,
 }: ClinicEditDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const canChangeStatus = userRole === Role.ADMIN;
+
   const TIMEZONES: Record<string, string[]> = {
     Mexico: [
       "America/Tijuana",
@@ -183,11 +187,17 @@ export function ClinicEditDialog({
                   onCheckedChange={async (checked) =>
                     await handleToggleActive(Boolean(checked))
                   }
+                  disabled={!canChangeStatus}
                 />
               </div>
               <div className="text-sm">
                 {clinic.isActive ? "Activo" : "Inactivo"}
               </div>
+              {!canChangeStatus && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Solo ADMIN
+                </div>
+              )}
             </div>
           </div>
 

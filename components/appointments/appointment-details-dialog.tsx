@@ -75,26 +75,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SlotPicker } from "./slot-picker";
-
-interface AppointmentTypeForClient extends Omit<AppointmentType, "price"> {
-  price: number;
-}
-
-interface AppointmentWithRelations extends Omit<Appointment, "customPrice"> {
-  customPrice?: number | null;
-  patient: Patient;
-  doctor: Doctor & {
-    user: {
-      firstName: string;
-      lastName: string;
-      secondLastName?: string;
-      specialty: string;
-    };
-  };
-  clinic?: Clinic | null;
-  room?: Room | null;
-  appointmentType?: AppointmentTypeForClient | null;
-}
+import { AppointmentWithRelations } from "@/types/appointments";
 
 interface AppointmentDetailsDialogProps {
   appointment: AppointmentWithRelations;
@@ -868,43 +849,41 @@ export function AppointmentDetailsDialog({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-start gap-3">
-                      <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Paciente
-                        </p>
-                        <p className="text-sm font-semibold">
-                          {patientEssentials.fullName}
-                        </p>
+                  <div className="flex items-start gap-3">
+                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Paciente
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {patientEssentials.fullName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(() => {
+                          switch (patientEssentials.gender) {
+                            case "MALE":
+                              return "Masculino";
+                            case "FEMALE":
+                              return "Femenino";
+                            case "OTHER":
+                              return "Otro";
+                            default:
+                              return "No especificado";
+                          }
+                        })()}
+                        {" - "}
+                        {patientEssentials.age !== null
+                          ? `${patientEssentials.age} años`
+                          : "N/A"}{" "}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {patientEssentials.customId}
+                      </p>
+                      {patientEssentials.phone && (
                         <p className="text-xs text-muted-foreground">
-                          {(() => {
-                            switch (patientEssentials.gender) {
-                              case "MALE":
-                                return "Masculino";
-                              case "FEMALE":
-                                return "Femenino";
-                              case "OTHER":
-                                return "Otro";
-                              default:
-                                return "No especificado";
-                            }
-                          })()}
-                          {" - "}
-                          {patientEssentials.age !== null
-                            ? `${patientEssentials.age} años`
-                            : "N/A"}{" "}
+                          {patientEssentials.phone}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {patientEssentials.customId}
-                        </p>
-                        {patientEssentials.phone && (
-                          <p className="text-xs text-muted-foreground">
-                            {patientEssentials.phone}
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
 
