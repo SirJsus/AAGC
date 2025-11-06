@@ -1,0 +1,43 @@
+[
+  {
+    "firstName": "Eduardo",
+    "lastName": "Hernández",
+    "secondLastName": "Ruiz",
+    "noSecondLastName": false,
+    "license": "MED-001-CDM",
+    "specialty": "Cardiología",
+    "phone": "+52 55 2345 6789",
+    "email": "eduardo.hernandez@email.com",
+    "address": "Consultorio 201, Hospital ABC",
+    "dateOfBirth": "1975-03-15",
+    "acronym": "EHR",
+    "roomName": "Consultorio A",
+    "isActive": true
+  },
+  {
+    "firstName": "María",
+    "lastName": "López",
+    "noSecondLastName": true,
+    "license": "MED-002-CDM",
+    "specialty": "Cardiología Pediátrica",
+    "phone": "+52 55 3456 7890",
+    "email": "maria.lopez@email.com",
+    "dateOfBirth": "1980-07-22",
+    "acronym": "ML",
+    "roomName": "Consultorio B",
+    "isActive": true
+  },
+  {
+    "firstName": "Roberto",
+    "lastName": "Silva",
+    "secondLastName": "García",
+    "noSecondLastName": false,
+    "license": "MED-003-CDM",
+    "specialty": "Medicina General",
+    "phone": "+52 55 4567 8901",
+    "email": "roberto.silva@email.com",
+    "dateOfBirth": "1985-11-30",
+    "acronym": "RSG",
+    "isActive": true
+  }
+]
