@@ -17,6 +17,7 @@ const createAppointmentSchema = z.object({
   appointmentTypeId: z.string().optional(),
   customReason: z.string().optional(),
   customPrice: z.number().optional(),
+  durationMin: z.number().optional(),
   date: z.union([z.string(), z.date()]).transform((val) => {
     // Convert string to Date if needed, otherwise use Date directly
     if (typeof val === "string") {
@@ -95,6 +96,21 @@ export async function createAppointment(
                 })
               )?.price ?? null)
             : null,
+      // Store custom duration if provided; otherwise, if an appointmentType
+      // was selected, use its duration as the appointment's durationMin so the
+      // appointment always contains the effective duration.
+      durationMin:
+        typeof validatedData.durationMin !== "undefined"
+          ? validatedData.durationMin
+          : // if appointmentTypeId provided, fetch its duration
+            validatedData.appointmentTypeId
+            ? ((
+                await prisma.appointmentType.findUnique({
+                  where: { id: validatedData.appointmentTypeId },
+                  select: { durationMin: true },
+                })
+              )?.durationMin ?? null)
+            : null,
       status: AppointmentStatus.PENDING,
     },
     include: {
@@ -109,7 +125,18 @@ export async function createAppointment(
   });
 
   revalidatePath("/appointments");
-  return appointment;
+
+  // Convert Decimal fields to numbers for client component compatibility
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+    appointmentType: appointment.appointmentType
+      ? {
+          ...appointment.appointmentType,
+          price: appointment.appointmentType.price.toNumber(),
+        }
+      : null,
+  };
 }
 
 export async function updateAppointment(
@@ -195,7 +222,18 @@ export async function updateAppointment(
   });
 
   revalidatePath("/appointments");
-  return appointment;
+
+  // Convert Decimal fields to numbers for client component compatibility
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+    appointmentType: appointment.appointmentType
+      ? {
+          ...appointment.appointmentType,
+          price: appointment.appointmentType.price.toNumber(),
+        }
+      : null,
+  };
 }
 
 export async function updateAppointmentStatus(

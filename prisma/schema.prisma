@@ -350,6 +350,7 @@ model Appointment {
   appointmentTypeId String?
   customReason      String?
   customPrice       Decimal?          @db.Decimal(10, 2)
+  durationMin       Int?              // Custom duration in minutes (overrides appointmentType duration)
   date              DateTime // Stored as UTC DateTime
   startTime         String // HH:MM format
   endTime           String // HH:MM format

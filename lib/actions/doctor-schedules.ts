@@ -452,8 +452,8 @@ export async function createDoctorException(
 
   const validatedData = createExceptionSchema.parse(data);
 
-  // Allow admins/clinic admins, or doctor that owns the doctorId
-  let allowed = Permissions.canManageDoctors(session.user);
+  // Allow admins/clinic admins/reception, or the doctor owning the record
+  let allowed = Permissions.canManageDoctorSchedules(session.user);
   if (!allowed) {
     if (session.user.role === "DOCTOR") {
       const doc = await prisma.doctor.findUnique({
@@ -485,9 +485,16 @@ export async function createDoctorException(
 
   // After creating the exception, mark overlapping appointments (PENDING/CONFIRMED)
   try {
+    const exceptionDate = new Date(validatedData.date + "T00:00:00");
+    const nextDay = new Date(exceptionDate);
+    nextDay.setDate(exceptionDate.getDate() + 1);
+
     const where: any = {
       doctorId: validatedData.doctorId,
-      date: validatedData.date,
+      date: {
+        gte: exceptionDate,
+        lt: nextDay,
+      },
       isActive: true,
       status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
     };
@@ -599,8 +606,8 @@ export async function updateDoctorException(
 
   const validatedData = createExceptionSchema.parse(data);
 
-  // Allow admins/clinic admins, or doctor that owns the exception's doctor
-  let allowed = Permissions.canManageDoctors(session.user);
+  // Allow admins/clinic admins/reception, or the doctor owning the record
+  let allowed = Permissions.canManageDoctorSchedules(session.user);
   if (!allowed) {
     if (session.user.role === "DOCTOR") {
       const exception = await prisma.doctorException.findUnique({
@@ -637,9 +644,16 @@ export async function updateDoctorException(
 
   // After updating the exception, mark overlapping appointments (PENDING/CONFIRMED)
   try {
+    const exceptionDate = new Date(validatedData.date + "T00:00:00");
+    const nextDay = new Date(exceptionDate);
+    nextDay.setDate(exceptionDate.getDate() + 1);
+
     const where: any = {
       doctorId: validatedData.doctorId,
-      date: validatedData.date,
+      date: {
+        gte: exceptionDate,
+        lt: nextDay,
+      },
       isActive: true,
       status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
     };
@@ -711,8 +725,8 @@ export async function deleteDoctorException(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // Allow admins/clinic admins, or doctor that owns the exception's doctor
-  let allowed = Permissions.canManageDoctors(session.user);
+  // Allow admins/clinic admins/reception, or the doctor owning the record
+  let allowed = Permissions.canManageDoctorSchedules(session.user);
   if (!allowed) {
     if (session.user.role === "DOCTOR") {
       const exception = await prisma.doctorException.findUnique({

@@ -137,7 +137,11 @@ export async function getClinics() {
     throw new Error("Unauthorized");
   }
 
-  if (!Permissions.canManageClinics(session.user)) {
+  // Allow users who can manage clinics OR manage appointments to view clinics
+  if (
+    !Permissions.canManageClinics(session.user) &&
+    !Permissions.canManageAppointments(session.user)
+  ) {
     throw new Error("Unauthorized");
   }
 
@@ -148,7 +152,7 @@ export async function getClinics() {
     });
   }
 
-  // CLINIC_ADMIN: return only their clinic
+  // CLINIC_ADMIN, RECEPTION, DOCTOR: return only their clinic
   if (!session.user.clinicId) {
     return [];
   }
