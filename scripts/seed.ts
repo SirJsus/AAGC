@@ -62,7 +62,39 @@ async function main() {
 
   console.log("Clinic created:", clinic.name);
 
-  // 3. Create Clinic Admin
+  // 3. Create Clinic Schedule (Monday to Friday, 10:00 - 20:00)
+  console.log("Creating clinic schedule...");
+  const scheduleData = [
+    { weekday: 1, day: "Lunes" }, // Monday
+    { weekday: 2, day: "Martes" }, // Tuesday
+    { weekday: 3, day: "Miércoles" }, // Wednesday
+    { weekday: 4, day: "Jueves" }, // Thursday
+    { weekday: 5, day: "Viernes" }, // Friday
+  ];
+
+  for (const schedule of scheduleData) {
+    await prisma.clinicSchedule.upsert({
+      where: {
+        clinicId_weekday_startTime_endTime: {
+          clinicId: clinic.id,
+          weekday: schedule.weekday,
+          startTime: "10:00",
+          endTime: "20:00",
+        },
+      },
+      update: {},
+      create: {
+        clinicId: clinic.id,
+        weekday: schedule.weekday,
+        startTime: "10:00",
+        endTime: "20:00",
+        isActive: true,
+      },
+    });
+    console.log(`Schedule created: ${schedule.day} 10:00 - 20:00`);
+  }
+
+  // 4. Create Clinic Admin
   console.log("Creating clinic admin...");
   const clinicAdmin = await prisma.user.upsert({
     where: { email: "admin.clinica@aagc.com" },
@@ -82,7 +114,7 @@ async function main() {
 
   console.log("Clinic admin created:", clinicAdmin.email);
 
-  // 4. Create Reception Users
+  // 5. Create Reception Users
   console.log("Creating reception users...");
   const receptionUsers = [];
 
@@ -127,7 +159,7 @@ async function main() {
     console.log("Reception user created:", user.email);
   }
 
-  // 5. Create Nurse
+  // 6. Create Nurse
   console.log("Creating nurse...");
   const nurse = await prisma.user.upsert({
     where: { email: "enfermero@demo.com" },
@@ -147,7 +179,7 @@ async function main() {
 
   console.log("Nurse created:", nurse.email);
 
-  // 6. Create Rooms for Doctors
+  // 7. Create Rooms for Doctors
   console.log("Creating rooms...");
   const rooms = [];
 
@@ -173,7 +205,7 @@ async function main() {
 
   console.log(`${rooms.length} rooms created`);
 
-  // 7. Create Doctors
+  // 8. Create Doctors
   console.log("Creating doctors...");
   const doctorsData = [
     {
