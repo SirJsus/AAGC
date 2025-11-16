@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
+// Marcar como ruta dinámica
+export const dynamic = "force-dynamic";
+
 const profileSchema = z.object({
   firstName: z.string().min(2),
   lastName: z.string().min(2),

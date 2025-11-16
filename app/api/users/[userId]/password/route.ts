@@ -5,6 +5,9 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
+// Marcar como ruta dinámica
+export const dynamic = "force-dynamic";
+
 const passwordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z

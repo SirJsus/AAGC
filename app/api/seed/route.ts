@@ -5,6 +5,9 @@ import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
+// Marcar como ruta dinámica
+export const dynamic = "force-dynamic";
+
 // IMPORTANTE: Solo permitir en desarrollo o con token especial
 export async function POST(request: Request) {
   // Verificar que solo se ejecute en desarrollo o con autenticación adecuada
