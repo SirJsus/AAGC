@@ -83,7 +83,7 @@ export function AppointmentTypesTable({
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
-            <TableHead>Duración</TableHead>
+            <TableHead>Duración Sugerida</TableHead>
             <TableHead>Precio</TableHead>
             {userRole === "ADMIN" && <TableHead>Clínica</TableHead>}
             <TableHead>Instrucciones</TableHead>

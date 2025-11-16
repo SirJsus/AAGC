@@ -641,7 +641,9 @@ export function AppointmentDetailsDialog({
           typeof localCustomPrice === "number"
             ? localCustomPrice
             : appointment.appointmentType.price,
-        duration: appointment.appointmentType.durationMin,
+        // Use custom duration if set, otherwise fall back to type's suggested duration
+        duration:
+          appointment.durationMin || appointment.appointmentType.durationMin,
       };
     }
     if (appointment.customReason || appointment.customPrice) {
@@ -652,7 +654,8 @@ export function AppointmentDetailsDialog({
           typeof localCustomPrice === "number"
             ? localCustomPrice
             : appointment.customPrice || 0,
-        duration: null,
+        // Use custom duration if available
+        duration: appointment.durationMin || null,
       };
     }
     return null;
@@ -799,7 +802,9 @@ export function AppointmentDetailsDialog({
                                 "America/Mexico_City"
                             )}
                             appointmentDurationMin={
-                              appointment.appointmentType?.durationMin || 30
+                              appointment.durationMin ||
+                              appointment.appointmentType?.durationMin ||
+                              30
                             }
                             selectedSlot={selectedSlot}
                             onSlotSelect={setSelectedSlot}
