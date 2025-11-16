@@ -109,7 +109,18 @@ export async function createAppointment(
   });
 
   revalidatePath("/appointments");
-  return appointment;
+
+  // Convert Decimal fields to numbers for client component compatibility
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+    appointmentType: appointment.appointmentType
+      ? {
+          ...appointment.appointmentType,
+          price: appointment.appointmentType.price.toNumber(),
+        }
+      : null,
+  };
 }
 
 export async function updateAppointment(
@@ -195,7 +206,18 @@ export async function updateAppointment(
   });
 
   revalidatePath("/appointments");
-  return appointment;
+
+  // Convert Decimal fields to numbers for client component compatibility
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+    appointmentType: appointment.appointmentType
+      ? {
+          ...appointment.appointmentType,
+          price: appointment.appointmentType.price.toNumber(),
+        }
+      : null,
+  };
 }
 
 export async function updateAppointmentStatus(

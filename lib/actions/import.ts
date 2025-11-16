@@ -602,7 +602,11 @@ async function importAppointment(
     newValues: appointment as unknown as Prisma.JsonObject,
   });
 
-  return appointment;
+  // Convert Decimal to number for consistency
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+  };
 }
 
 export async function deleteImportJob(id: string) {

@@ -99,6 +99,12 @@ async function main() {
       lastName: "Dos",
       phone: "5551234569",
     },
+    {
+      email: "recepcion3@aagc.com",
+      firstName: "Recepción",
+      lastName: "Tres",
+      phone: "5551234570",
+    },
   ];
 
   for (const data of receptionData) {
