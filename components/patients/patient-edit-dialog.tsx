@@ -119,7 +119,7 @@ export function PatientEditDialog({
   const loadDoctors = async () => {
     try {
       const data = await getDoctors();
-      setDoctors(data);
+      setDoctors(data.doctors);
     } catch (error) {
       toast.error("Error al cargar doctores");
     }

@@ -40,7 +40,6 @@ interface User {
   role: Role;
   clinicId?: string | null;
   isActive: boolean;
-  specialty?: string | null;
   licenseNumber?: string | null;
   doctor?: {
     acronym: string;
@@ -76,7 +75,6 @@ export function UserEditDialog({
     role: user.role,
     clinicId: user.clinicId || "",
     isActive: user.isActive,
-    specialty: user.specialty || "",
     licenseNumber: user.licenseNumber || "",
     acronym: user.doctor?.acronym || "",
     roomId: user.doctor?.roomId || "",
@@ -101,7 +99,7 @@ export function UserEditDialog({
 
     // Validación adicional para doctores
     if (formData.role === "DOCTOR") {
-      if (!formData.specialty || !formData.licenseNumber) {
+      if (!formData.licenseNumber) {
         toast.error(
           "Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'"
         );
@@ -123,7 +121,6 @@ export function UserEditDialog({
       await updateUser(user.id, {
         ...formData,
         clinicId: formData.clinicId || undefined,
-        specialty: formData.specialty || undefined,
         licenseNumber: formData.licenseNumber || undefined,
         acronym: formData.acronym || undefined,
         roomId: formData.roomId || undefined,
@@ -364,22 +361,11 @@ export function UserEditDialog({
             <TabsContent value="doctor" className="space-y-4 mt-4">
               {formData.role === "DOCTOR" ? (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="specialty">Especialidad *</Label>
-                    <Input
-                      id="specialty"
-                      required={formData.role === "DOCTOR"}
-                      value={formData.specialty}
-                      onChange={(e) =>
-                        setFormData({ ...formData, specialty: e.target.value })
-                      }
-                      placeholder="Ej: Cardiología"
-                      minLength={3}
-                      title="Ingrese la especialidad médica del doctor"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Ejemplos: Cardiología, Pediatría, Traumatología, Medicina
-                      General
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      💡 Las especialidades médicas ahora se gestionan desde la
+                      página de <strong>Doctores</strong>. Allí podrás asignar
+                      múltiples especialidades y marcar una como principal.
                     </p>
                   </div>
 

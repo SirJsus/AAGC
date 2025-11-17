@@ -122,18 +122,7 @@ export function AppointmentDetailsDialog({
 
   // Reschedule mode
   const [isRescheduling, setIsRescheduling] = useState(false);
-  const [doctors, setDoctors] = useState<
-    Array<
-      Doctor & {
-        user: {
-          firstName: string;
-          lastName: string;
-          secondLastName: string | null;
-          specialty: string;
-        };
-      }
-    >
-  >([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState(appointment.doctorId);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -296,30 +285,15 @@ export function AppointmentDetailsDialog({
       // If current user is a DOCTOR, load only their doctor record and auto-select it
       if (session?.user && session.user.role === "DOCTOR") {
         const doc = await getDoctorByUserId();
-        const mapped = {
-          ...doc,
-          user: {
-            ...doc.user,
-            specialty: doc.user.specialty ?? "",
-          },
-        } as any;
-        setDoctors([mapped]);
-        setSelectedDoctor(mapped.id);
+        setDoctors([doc as any]);
+        setSelectedDoctor(doc.id);
         // Immediately load availability for this doctor to avoid load-order race
-        await loadAvailabilityForRange(mapped.id);
+        await loadAvailabilityForRange(doc.id);
         return;
       }
 
       const data = await getDoctors();
-      // Ensure user.specialty is always a string (not null)
-      const mappedDoctors = data.map((doctor: any) => ({
-        ...doctor,
-        user: {
-          ...doctor.user,
-          specialty: doctor.user.specialty ?? "",
-        },
-      }));
-      setDoctors(mappedDoctors);
+      setDoctors(data.doctors as any);
     } catch (error) {
       toast.error("Error al cargar doctores");
     }
@@ -728,14 +702,18 @@ export function AppointmentDetailsDialog({
                         <SelectValue placeholder="Selecciona un doctor" />
                       </SelectTrigger>
                       <SelectContent>
-                        {doctors.map((doctor) => (
-                          <SelectItem key={doctor.id} value={doctor.id}>
-                            Dr. {doctor.user.firstName} {doctor.user.lastName}{" "}
-                            {doctor.user.secondLastName || ""}{" "}
-                            {doctor.user.specialty &&
-                              `- ${doctor.user.specialty}`}
-                          </SelectItem>
-                        ))}
+                        {doctors.map((doctor) => {
+                          const primarySpecialty = doctor.specialties?.find(
+                            (s: any) => s.isPrimary
+                          )?.specialty?.name;
+                          return (
+                            <SelectItem key={doctor.id} value={doctor.id}>
+                              Dr. {doctor.user.firstName} {doctor.user.lastName}{" "}
+                              {doctor.user.secondLastName || ""}{" "}
+                              {primarySpecialty && `- ${primarySpecialty}`}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {session?.user && session.user.role === "DOCTOR" && (
@@ -903,11 +881,15 @@ export function AppointmentDetailsDialog({
                         {appointment.doctor.user.lastName}{" "}
                         {appointment.doctor.user.secondLastName || ""}
                       </p>
-                      {appointment.doctor.user.specialty && (
-                        <p className="text-xs text-muted-foreground">
-                          {appointment.doctor.user.specialty}
-                        </p>
-                      )}
+                      {appointment.doctor.specialties &&
+                        appointment.doctor.specialties.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {appointment.doctor.specialties.find(
+                              (s) => s.isPrimary
+                            )?.specialty.name ||
+                              appointment.doctor.specialties[0].specialty.name}
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -1352,18 +1334,24 @@ export function AppointmentDetailsDialog({
                                   <SelectValue placeholder="Selecciona un doctor" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {doctors.map((doctor) => (
-                                    <SelectItem
-                                      key={doctor.id}
-                                      value={doctor.id}
-                                    >
-                                      Dr. {doctor.user.firstName}{" "}
-                                      {doctor.user.lastName}{" "}
-                                      {doctor.user.secondLastName || ""}{" "}
-                                      {doctor.user.specialty &&
-                                        `- ${doctor.user.specialty}`}
-                                    </SelectItem>
-                                  ))}
+                                  {doctors.map((doctor) => {
+                                    const primarySpecialty =
+                                      doctor.specialties?.find(
+                                        (s: any) => s.isPrimary
+                                      )?.specialty?.name;
+                                    return (
+                                      <SelectItem
+                                        key={doctor.id}
+                                        value={doctor.id}
+                                      >
+                                        Dr. {doctor.user.firstName}{" "}
+                                        {doctor.user.lastName}{" "}
+                                        {doctor.user.secondLastName || ""}{" "}
+                                        {primarySpecialty &&
+                                          `- ${primarySpecialty}`}
+                                      </SelectItem>
+                                    );
+                                  })}
                                 </SelectContent>
                               </Select>
                             </div>

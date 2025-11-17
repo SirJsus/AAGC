@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -23,7 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { createUser } from "@/lib/actions/users";
+import {
+  getActiveSpecialties,
+  createSpecialty,
+} from "@/lib/actions/specialties";
 import { toast } from "sonner";
 import { Plus, Eye, EyeOff, User, Stethoscope } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -44,8 +49,12 @@ export function UserCreateDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+  const [specialties, setSpecialties] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -57,7 +66,8 @@ export function UserCreateDialog({
     role: "RECEPTION" as Role,
     clinicId: currentUserRole === "ADMIN" ? "" : currentUserClinicId || "",
     // Doctor-specific fields
-    specialty: "",
+    specialtyIds: [] as string[], // Array de IDs de especialidades
+    primarySpecialtyId: "", // ID de la especialidad principal
     licenseNumber: "",
     acronym: "",
     roomId: "",
@@ -75,6 +85,51 @@ export function UserCreateDialog({
     RECEPTION: "Recepcionista",
     NURSE: "Enfermero/a",
     DOCTOR: "Doctor",
+  };
+
+  // Cargar especialidades cuando se abre el diálogo
+  useEffect(() => {
+    if (open) {
+      loadSpecialties();
+    }
+  }, [open]);
+
+  const loadSpecialties = async () => {
+    setLoadingSpecialties(true);
+    try {
+      const result = await getActiveSpecialties();
+      if (result.success && result.data) {
+        setSpecialties(result.data);
+      } else {
+        toast.error("Error al cargar especialidades");
+        setSpecialties([]);
+      }
+    } catch (error) {
+      console.error("Error loading specialties:", error);
+      toast.error("Error al cargar especialidades");
+      setSpecialties([]);
+    } finally {
+      setLoadingSpecialties(false);
+    }
+  };
+
+  const handleCreateSpecialty = async (name: string) => {
+    try {
+      const result = await createSpecialty({ name });
+      if (result.success && result.data) {
+        // Agregar la nueva especialidad a la lista
+        setSpecialties((prev) => [...prev, result.data]);
+        toast.success(`Especialidad "${name}" creada exitosamente`);
+        return { value: result.data.id, label: result.data.name };
+      } else {
+        toast.error(result.error || "Error al crear especialidad");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error creating specialty:", error);
+      toast.error("Error al crear especialidad");
+      return null;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,7 +159,7 @@ export function UserCreateDialog({
 
     // Validación adicional para doctores
     if (formData.role === "DOCTOR") {
-      if (!formData.specialty || !formData.licenseNumber) {
+      if (formData.specialtyIds.length === 0 || !formData.licenseNumber) {
         toast.error(
           "Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'"
         );
@@ -126,7 +181,9 @@ export function UserCreateDialog({
       await createUser({
         ...formData,
         clinicId: formData.clinicId || undefined,
-        specialty: formData.specialty || undefined,
+        specialtyIds:
+          formData.specialtyIds.length > 0 ? formData.specialtyIds : undefined,
+        primarySpecialtyId: formData.primarySpecialtyId || undefined,
         licenseNumber: formData.licenseNumber || undefined,
         acronym: formData.acronym || undefined,
         roomId: formData.roomId || undefined,
@@ -145,7 +202,8 @@ export function UserCreateDialog({
         phone: "",
         role: "RECEPTION",
         clinicId: currentUserRole === "ADMIN" ? "" : currentUserClinicId || "",
-        specialty: "",
+        specialtyIds: [],
+        primarySpecialtyId: "",
         licenseNumber: "",
         acronym: "",
         roomId: "",
@@ -493,23 +551,83 @@ export function UserCreateDialog({
               {formData.role === "DOCTOR" ? (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="specialty">Especialidad *</Label>
-                    <Input
-                      id="specialty"
-                      required={formData.role === "DOCTOR"}
-                      value={formData.specialty}
-                      onChange={(e) =>
-                        setFormData({ ...formData, specialty: e.target.value })
-                      }
-                      placeholder="Ej: Cardióloga"
-                      minLength={3}
-                      title="Ingrese la especialidad médica del doctor"
-                    />
+                    <Label htmlFor="specialties">Especialidades *</Label>
+                    {loadingSpecialties ? (
+                      <div className="rounded-md border border-input px-3 py-2 text-sm text-muted-foreground">
+                        Cargando especialidades...
+                      </div>
+                    ) : (
+                      <MultiSelect
+                        options={specialties.map((s) => ({
+                          value: s.id,
+                          label: s.name,
+                        }))}
+                        selected={formData.specialtyIds}
+                        onChange={(selected) =>
+                          setFormData({
+                            ...formData,
+                            specialtyIds: selected,
+                            // Si solo hay una especialidad seleccionada, hacerla principal automáticamente
+                            primarySpecialtyId:
+                              selected.length === 1
+                                ? selected[0]
+                                : formData.primarySpecialtyId &&
+                                    selected.includes(
+                                      formData.primarySpecialtyId
+                                    )
+                                  ? formData.primarySpecialtyId
+                                  : "",
+                          })
+                        }
+                        placeholder="Seleccionar o crear especialidades..."
+                        className="w-full"
+                        allowCreate={true}
+                        onCreateOption={handleCreateSpecialty}
+                        creatingLabel="Creando especialidad..."
+                      />
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      Ejemplos: Cardióloga, Pediatría, Traumatología, Medicina
-                      General
+                      Seleccione especialidades existentes o escriba para crear
+                      una nueva
                     </p>
                   </div>
+
+                  {formData.specialtyIds.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="primarySpecialty">
+                        Especialidad Principal *
+                      </Label>
+                      <Select
+                        value={formData.primarySpecialtyId || ""}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            primarySpecialtyId: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="primarySpecialty">
+                          <SelectValue placeholder="Seleccionar especialidad principal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.specialtyIds.map((specialtyId) => {
+                            const specialty = specialties.find(
+                              (s) => s.id === specialtyId
+                            );
+                            return (
+                              <SelectItem key={specialtyId} value={specialtyId}>
+                                {specialty?.name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        La especialidad principal aparecerá primero en los
+                        listados
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="licenseNumber">

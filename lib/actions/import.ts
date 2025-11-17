@@ -338,7 +338,6 @@ async function importDoctor(
           : null,
       role: Role.DOCTOR,
       clinicId,
-      specialty: data.specialty || null,
       licenseNumber: licenseNumber,
       isActive: data.isActive !== false && data.isActive !== "false",
     },
