@@ -325,28 +325,100 @@ export async function deleteUser(id: string) {
   revalidatePath("/doctors");
 }
 
-export async function getUsers() {
+export async function getUsers(params?: {
+  search?: string;
+  role?: string;
+  status?: string;
+  clinicId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
     throw new Error("Unauthorized");
   }
 
-  const whereClause =
-    session.user.role === Role.ADMIN
-      ? { isActive: true }
-      : {
-          isActive: true,
-          clinicId: session.user.clinicId,
-        };
+  const {
+    search = "",
+    role = "all",
+    status = "all",
+    clinicId = "all",
+    page = 1,
+    pageSize = 20,
+  } = params || {};
 
-  return prisma.user.findMany({
+  // Build where clause
+  const whereClause: any = {
+    deletedAt: null,
+  };
+
+  // Status filter
+  if (status === "active") {
+    whereClause.isActive = true;
+  } else if (status === "inactive") {
+    whereClause.isActive = false;
+  }
+
+  // Clinic filter
+  if (session.user.role === Role.ADMIN) {
+    if (clinicId === "none") {
+      whereClause.clinicId = null;
+    } else if (clinicId !== "all") {
+      whereClause.clinicId = clinicId;
+    }
+  } else {
+    // Non-admin users only see users from their clinic
+    whereClause.clinicId = session.user.clinicId;
+  }
+
+  // Role filter
+  if (role !== "all") {
+    whereClause.role = role;
+  }
+
+  // Search filter
+  if (search) {
+    whereClause.OR = [
+      { firstName: { contains: search, mode: "insensitive" } },
+      { lastName: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Get total count
+  const total = await prisma.user.count({
+    where: whereClause,
+  });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Get users with pagination
+  const users = await prisma.user.findMany({
     where: whereClause,
     include: {
       clinic: true,
+      doctor: {
+        select: {
+          acronym: true,
+          roomId: true,
+        },
+      },
     },
-    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    orderBy: [{ role: "asc" }, { firstName: "asc" }],
+    skip,
+    take: pageSize,
   });
+
+  return {
+    users,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }
 
 export async function resetUserPassword(userId: string) {

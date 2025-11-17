@@ -130,7 +130,12 @@ export async function setClinicActive(id: string, isActive: boolean) {
   return clinic;
 }
 
-export async function getClinics() {
+export async function getClinics(params?: {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
@@ -145,22 +150,54 @@ export async function getClinics() {
     throw new Error("Unauthorized");
   }
 
-  // ADMIN: return all clinics
-  if (session.user.role === "ADMIN") {
-    return prisma.clinic.findMany({
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    });
+  const { search = "", status = "all", page = 1, pageSize = 20 } = params || {};
+
+  // Build where clause
+  const whereClause: any = {};
+
+  // Status filter
+  if (status === "active") {
+    whereClause.isActive = true;
+  } else if (status === "inactive") {
+    whereClause.isActive = false;
   }
 
-  // CLINIC_ADMIN, RECEPTION, DOCTOR: return only their clinic
-  if (!session.user.clinicId) {
-    return [];
+  // For non-admin users, restrict to their clinic
+  if (session.user.role !== "ADMIN" && session.user.clinicId) {
+    whereClause.id = session.user.clinicId;
   }
 
-  return prisma.clinic.findMany({
-    where: {
-      id: session.user.clinicId,
-    },
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+  // Search filter
+  if (search) {
+    whereClause.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { address: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Get total count
+  const total = await prisma.clinic.count({
+    where: whereClause,
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Get clinics with pagination
+  const clinics = await prisma.clinic.findMany({
+    where: whereClause,
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    skip,
+    take: pageSize,
+  });
+
+  return {
+    clinics,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }
