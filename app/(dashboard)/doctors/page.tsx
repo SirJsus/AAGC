@@ -40,7 +40,8 @@ export default async function DoctorsPage({ searchParams }: DoctorsPageProps) {
   });
 
   // Get clinics for filter (only for ADMIN)
-  const clinics = session.user.role === "ADMIN" ? await getClinics() : [];
+  const clinics =
+    session.user.role === "ADMIN" ? (await getClinics()).clinics : [];
 
   // Get all available specialties
   const specialties = await getDoctorSpecialties();
