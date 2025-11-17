@@ -10,6 +10,7 @@ import {
   Clinic,
   Room,
   AppointmentType,
+  Specialty,
 } from "@prisma/client";
 
 // AppointmentType with price as number (converted from Decimal)
@@ -28,8 +29,11 @@ export interface AppointmentWithRelations
       firstName: string;
       lastName: string;
       secondLastName?: string;
-      specialty: string;
     };
+    specialties?: Array<{
+      specialty: Specialty;
+      isPrimary: boolean;
+    }>;
   };
   clinic: Clinic | null;
   room: Room | null;

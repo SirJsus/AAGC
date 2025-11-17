@@ -1,48 +1,51 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Header } from "@/components/layout/header"
-import { Card, CardContent } from "@/components/ui/card"
-import { AppointmentTypesTable } from "@/components/appointments/appointment-types-table"
-import { AppointmentTypeCreateDialog } from "@/components/appointments/appointment-type-create-dialog"
-import { useRouter } from "next/navigation"
+import { useState } from "react";
+import { Header } from "@/components/layout/header";
+import { Card, CardContent } from "@/components/ui/card";
+import { AppointmentTypesTable } from "@/components/appointments/appointment-types-table";
+import { AppointmentTypeCreateDialog } from "@/components/appointments/appointment-type-create-dialog";
+import { useRouter } from "next/navigation";
 
 interface SerializedClinic {
-  id: string
-  name: string
-  address: string | null
-  phone: string | null
-  email: string | null
-  timezone: string
-  locale: string
-  defaultSlotMinutes: number
-  patientAcronym: string
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-  deletedAt: string | null
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  timezone: string;
+  locale: string;
+  defaultSlotMinutes: number;
+  patientAcronym: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 }
 
 interface SerializedAppointmentType {
-  id: string
-  name: string
-  clinicId: string
-  durationMin: number
-  price: number
-  preInstructions: string | null
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-  deletedAt: string | null
-  clinic: SerializedClinic | null
+  id: string;
+  name: string;
+  clinicId: string;
+  durationMin: number;
+  price: number;
+  preInstructions: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  clinic: SerializedClinic | null;
 }
 
 interface AppointmentTypesClientProps {
-  appointmentTypes: SerializedAppointmentType[]
-  clinics: SerializedClinic[]
-  userRole: string
-  userClinicId?: string
-  canManage: boolean
+  appointmentTypes: SerializedAppointmentType[];
+  clinics: SerializedClinic[];
+  userRole: string;
+  userClinicId?: string;
+  canManage: boolean;
+  total: number;
+  totalPages: number;
+  currentPage: number;
 }
 
 export function AppointmentTypesClient({
@@ -51,19 +54,26 @@ export function AppointmentTypesClient({
   userRole,
   userClinicId,
   canManage,
+  total,
+  totalPages,
+  currentPage,
 }: AppointmentTypesClientProps) {
-  const router = useRouter()
+  const router = useRouter();
 
   const handleUpdate = () => {
-    router.refresh()
-  }
+    router.refresh();
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <Header 
-          title="Tipos de Citas" 
-          description={canManage ? "Gestiona los tipos de citas y precios" : "Consulta los tipos de citas y precios"}
+        <Header
+          title="Tipos de Citas"
+          description={
+            canManage
+              ? "Gestiona los tipos de citas y precios"
+              : "Consulta los tipos de citas y precios"
+          }
         />
         {canManage && (
           <AppointmentTypeCreateDialog
@@ -82,9 +92,12 @@ export function AppointmentTypesClient({
             clinics={clinics as any}
             userRole={userRole}
             onUpdate={handleUpdate}
+            total={total}
+            totalPages={totalPages}
+            currentPage={currentPage}
           />
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -6,10 +6,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { redirect } from "next/navigation";
 import { UserCreateDialog } from "@/components/users/user-create-dialog";
 import { UsersTable } from "@/components/users/users-table";
+import { getUsers } from "@/lib/actions/users";
 
 export const dynamic = "force-dynamic";
 
-export default async function UsersPage() {
+interface UsersPageProps {
+  searchParams: {
+    search?: string;
+    role?: string;
+    status?: string;
+    clinicId?: string;
+    page?: string;
+    pageSize?: string;
+  };
+}
+
+export default async function UsersPage({ searchParams }: UsersPageProps) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
@@ -21,27 +33,16 @@ export default async function UsersPage() {
     redirect("/dashboard");
   }
 
-  // Get users based on role
-  const whereClause =
-    session.user.role === "ADMIN"
-      ? { deletedAt: null }
-      : {
-          clinicId: session.user.clinicId || "",
-          deletedAt: null,
-        };
+  const page = parseInt(searchParams.page || "1");
+  const pageSize = parseInt(searchParams.pageSize || "20");
 
-  const users = await prisma.user.findMany({
-    where: whereClause,
-    include: {
-      clinic: true,
-      doctor: {
-        select: {
-          acronym: true,
-          roomId: true,
-        },
-      },
-    },
-    orderBy: [{ role: "asc" }, { firstName: "asc" }],
+  const { users, total, totalPages, currentPage } = await getUsers({
+    search: searchParams.search,
+    role: searchParams.role,
+    status: searchParams.status || "all",
+    clinicId: searchParams.clinicId,
+    page,
+    pageSize,
   });
 
   // Get clinics for the dropdown
@@ -75,6 +76,16 @@ export default async function UsersPage() {
     orderBy: { name: "asc" },
   });
 
+  // Get specialties for doctor assignment
+  const specialties = await prisma.specialty.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -85,6 +96,7 @@ export default async function UsersPage() {
         <UserCreateDialog
           clinics={clinics}
           rooms={rooms}
+          specialties={specialties}
           currentUserRole={session.user.role}
           currentUserClinicId={session.user.clinicId}
         />
@@ -96,8 +108,12 @@ export default async function UsersPage() {
             users={users}
             clinics={clinics}
             rooms={rooms}
+            specialties={specialties}
             currentUserRole={session.user.role}
             currentUserClinicId={session.user.clinicId}
+            total={total}
+            totalPages={totalPages}
+            currentPage={currentPage}
           />
         </CardContent>
       </Card>

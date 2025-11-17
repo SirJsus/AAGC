@@ -1,4 +1,4 @@
-# Guía de Importación de Datos
+# Guía de Importación de Datos - Simplificada
 
 Esta guía describe cómo importar datos masivos a la clínica usando archivos CSV o JSON.
 
@@ -13,84 +13,74 @@ El sistema soporta dos formatos de archivo:
 
 ### 1. Importación de Pacientes
 
-#### 🎯 Dos Modos de Importación
+#### 🎯 Importación Simplificada
 
-El sistema soporta dos modos de importación de pacientes:
+El sistema ha sido simplificado para facilitar la importación rápida de pacientes. Solo necesitas proporcionar los datos básicos y el sistema se encarga del resto.
 
-**Modo Básico (Paciente Temporal)**
-
-- Solo requiere campos esenciales
-- Se marca como `pendingCompletion: true`
-- Ideal para registro rápido en recepción
-- Se puede completar información después
-
-**Modo Completo (Paciente Completo)**
-
-- Incluye todos los campos disponibles
-- Se marca como `pendingCompletion: false`
-- Información completa desde el inicio
-
-#### Campos Requeridos (Modo Básico)
+#### Campos Requeridos
 
 - `firstName` (string): Nombre del paciente
-- `lastName` (string): Apellido paterno
-- `phone` (string): Teléfono de contacto
-- **ID en 4 partes (OBLIGATORIO):**
-  - `customIdClinic` (string): Acrónimo de la clínica (ej: "CE")
-  - `customIdDoctor` (string): Acrónimo del doctor (ej: "EH")
-  - `customIdLastName` (string): Primera letra del apellido (ej: "G")
-  - `customIdNumber` (string/number): Número correlativo (ej: "1" o "0001")
-  - El sistema los juntará automáticamente: `{customIdClinic}{customIdDoctor}{customIdLastName}{customIdNumber}`
+- `lastName` (string): Apellido paterno (se usará la 1ª letra para el ID)
+- **ID en 3 partes (OBLIGATORIO):**
+  - `customIdClinic` (string): Acrónimo de la clínica (ej: "ABC")
+  - `customIdDoctor` (string): Acrónimo del doctor (ej: "DFG")
+  - `customIdNumber` (number): Número consecutivo (ej: 1, 2, 3...)
 
-#### Campos Opcionales (Modo Completo)
+**✨ Nota sobre la letra del apellido:**
+El sistema extrae **automáticamente** la primera letra del `lastName` para construir el ID personalizado.
 
-**Datos Básicos del Paciente:**
+**Ejemplo:**
+
+- Si importas: `lastName="Benítez"`, `customIdClinic="ABC"`, `customIdDoctor="DFG"`, `customIdNumber=1`
+- Se generará el ID: **ABC-DFG-B001**
+
+El número se formatea automáticamente con 3 dígitos (padding con ceros).
+
+#### Campos Opcionales
 
 - `secondLastName` (string): Apellido materno
 - `noSecondLastName` (boolean): true si no tiene segundo apellido
+- `phone` (string): Teléfono (se genera temporal si no se proporciona)
 - `email` (string): Correo electrónico
-- `birthDate` (string): Fecha de nacimiento en formato YYYY-MM-DD
-- `gender` (string): Género (MALE, FEMALE, OTHER)
-- `address` (string): Dirección completa
-- `notes` (string): Notas adicionales
-- `doctorLicense` (string): Licencia del doctor asignado en la clínica
-- `pendingCompletion` (boolean): true para marcar como temporal
-
-**Contacto de Emergencia (Estructurado):**
-
-- `emergencyContactFirstName` (string): Nombre del contacto
-- `emergencyContactLastName` (string): Apellido del contacto
-- `emergencyContactSecondLastName` (string): Segundo apellido
-- `emergencyContactNoSecondLastName` (boolean): true si no tiene segundo apellido
-- `emergencyContactPhone` (string): Teléfono del contacto
-
-**Doctor Primario Externo (No de la clínica):**
-
-- `primaryDoctorFirstName` (string): Nombre del doctor
-- `primaryDoctorLastName` (string): Apellido del doctor
-- `primaryDoctorSecondLastName` (string): Segundo apellido
-- `primaryDoctorNoSecondLastName` (boolean): true si no tiene segundo apellido
-- `primaryDoctorPhone` (string): Teléfono del doctor
 
 #### Ejemplo CSV
 
 ```csv
-firstName,lastName,phone,customIdClinic,customIdDoctor,customIdLastName,customIdNumber,pendingCompletion
-Juan,García,+52 55 1234 5678,CE,EH,G,1,false
-María,López,+52 55 2345 6789,CE,ML,L,2,false
-Carlos,Hernández,+52 55 3456 7890,CE,EH,H,3,false
-Pedro,Ramírez,+52 55 9999 0000,CE,RS,R,4,true
+firstName,lastName,secondLastName,noSecondLastName,customIdClinic,customIdDoctor,customIdNumber,phone,email
+Juan,Pérez,García,false,ABC,DFG,1,555-0001,juan.perez@example.com
+María,González,López,false,ABC,DFG,2,555-0002,maria.gonzalez@example.com
+Pedro,Rodríguez,Martínez,false,ABC,DFG,3,555-0003,pedro.rodriguez@example.com
+Ana,Fernández,,true,ABC,DFG,4,555-0004,ana.fernandez@example.com
+Carlos,López,Sánchez,false,ABC,DFG,5,,
 ```
 
-**Nota sobre el ID (customId):**
+**IDs generados:**
 
-- **Fila 1**: `CE` + `EH` + `G` + `1` → se genera como **"CEEHG0001"**
-- **Fila 2**: `CE` + `ML` + `L` + `2` → se genera como **"CEMLL0002"**
-- **Fila 3**: `CE` + `EH` + `H` + `3` → se genera como **"CEEHH0003"**
-- **Fila 4**: `CE` + `RS` + `R` + `4` → se genera como **"CERSR0004"** (temporal)
-- El número se formatea automáticamente con 4 dígitos (padding con ceros)
+- Fila 1: `ABC` + `DFG` + `P` (de Pérez) + `001` → **ABC-DFG-P001**
+- Fila 2: `ABC` + `DFG` + `G` (de González) + `002` → **ABC-DFG-G002**
+- Fila 3: `ABC` + `DFG` + `R` (de Rodríguez) + `003` → **ABC-DFG-R003**
+- Fila 4: `ABC` + `DFG` + `F` (de Fernández) + `004` → **ABC-DFG-F004**
+- Fila 5: `ABC` + `DFG` + `L` (de López) + `005` → **ABC-DFG-L005** (sin teléfono, se genera temporal)
 
-Ver archivo de ejemplo completo: `patients-import-example.csv` o `patients-import-example.json`
+#### Ejemplo JSON
+
+```json
+[
+  {
+    "firstName": "Juan",
+    "lastName": "Pérez",
+    "secondLastName": "García",
+    "noSecondLastName": false,
+    "customIdClinic": "ABC",
+    "customIdDoctor": "DFG",
+    "customIdNumber": 1,
+    "phone": "555-0001",
+    "email": "juan.perez@example.com"
+  }
+]
+```
+
+Ver archivos de ejemplo completos: `patients-import-example.csv` o `patients-import-example.json`
 
 ### 2. Importación de Doctores
 
@@ -98,7 +88,7 @@ Ver archivo de ejemplo completo: `patients-import-example.csv` o `patients-impor
 
 - `firstName` (string): Nombre del doctor
 - `lastName` (string): Apellido del doctor
-- `license` (string): Número de cédula profesional (debe ser único)
+- `license` o `licenseNumber` (string): Número de licencia único
 
 #### Campos Opcionales
 
@@ -108,186 +98,122 @@ Ver archivo de ejemplo completo: `patients-import-example.csv` o `patients-impor
 - `phone` (string): Teléfono de contacto
 - `email` (string): Correo electrónico
 - `address` (string): Dirección
-- `dateOfBirth` (string): Fecha de nacimiento en formato YYYY-MM-DD
-- `acronym` (string): Acrónimo para IDs de pacientes (2-3 letras, default: primeras letras del nombre)
+- `dateOfBirth` o `birthDate` (string): Fecha de nacimiento (YYYY-MM-DD)
+- `acronym` (string): Acrónimo para IDs de pacientes (se genera automáticamente si no se proporciona)
 - `roomName` (string): Nombre del consultorio asignado
-- `isActive` (boolean): Estado activo (default: true)
+- `isActive` (boolean): Si el doctor está activo (default: true)
 
 #### Ejemplo CSV
 
 ```csv
-firstName,lastName,secondLastName,noSecondLastName,license,specialty,phone,email,dateOfBirth,acronym,roomName,isActive
-Eduardo,Hernández,Ruiz,false,MED-001-CDM,Cardiología,+52 55 2345 6789,eduardo.hernandez@email.com,1975-03-15,EHR,Consultorio A,true
-María,López,,true,MED-002-CDM,Pediatría,+52 55 3456 7890,maria.lopez@email.com,1980-07-22,ML,,true
+firstName,lastName,license,specialty,phone,email,acronym
+Dr. Eduardo,Hernández,LIC12345,Cardiología,555-1001,eduardo.h@clinica.com,EH
+Dra. María,López,LIC67890,Pediatría,555-1002,maria.l@clinica.com,ML
 ```
-
-Ver archivo de ejemplo completo: `doctors-import-example.csv` o `doctors-import-example.json`
 
 ### 3. Importación de Citas
 
 #### Campos Requeridos
 
-- `patientCustomId` (string): ID del paciente (ej: CEH0001)
-- `doctorLicense` (string): Cédula del doctor
-- `date` (string): Fecha de la cita en formato YYYY-MM-DD
-- `startTime` (string): Hora de inicio en formato HH:MM
-- `endTime` (string): Hora de fin en formato HH:MM
+- `patientCustomId` (string): ID personalizado del paciente
+- `doctorLicense` (string): Licencia del doctor
+- `date` (string): Fecha de la cita (YYYY-MM-DD)
+- `startTime` (string): Hora de inicio (HH:MM)
+- `endTime` (string): Hora de fin (HH:MM)
 
 #### Campos Opcionales
 
 - `appointmentTypeName` (string): Nombre del tipo de cita
 - `roomName` (string): Nombre del consultorio
-- `customReason` (string): Motivo personalizado
+- `customReason` (string): Razón personalizada
 - `customPrice` (number): Precio personalizado
-- `status` (string): Estado (PENDING, CONFIRMED, IN_CONSULTATION, TRANSFER_PENDING, COMPLETED, CANCELLED, PAID, NO_SHOW, REQUIRES_RESCHEDULE)
+- `status` (string): Estado (PENDING, CONFIRMED, IN_CONSULTATION, etc.)
 - `paymentMethod` (string): Método de pago (CASH, DEBIT_CARD, CREDIT_CARD, TRANSFER)
-- `paymentConfirmed` (boolean): Si el pago fue confirmado
+- `paymentConfirmed` (boolean): Si el pago está confirmado
 - `notes` (string): Notas adicionales
-- `cancelReason` (string): Razón de cancelación
-- `cancelledAt` (string): Fecha de cancelación en formato YYYY-MM-DD
-- `cancelledBy` (string): Quien canceló
 
 #### Ejemplo CSV
 
 ```csv
-patientCustomId,doctorLicense,date,startTime,endTime,appointmentTypeName,roomName,customPrice,status,paymentMethod,paymentConfirmed,notes
-CEH0001,MED-001-CDM,2025-11-10,09:00,09:30,Consulta General,Consultorio A,500,CONFIRMED,CASH,true,Primera consulta
-CEH0002,MED-002-CDM,2025-11-10,10:00,10:45,Consulta Especializada,Consultorio B,800,PENDING,,,Evaluación
+patientCustomId,doctorLicense,date,startTime,endTime,status
+ABC-DFG-P001,LIC12345,2025-11-20,09:00,10:00,CONFIRMED
+ABC-DFG-G002,LIC67890,2025-11-20,10:00,11:00,PENDING
 ```
 
-Ver archivo de ejemplo completo: `appointments-import-example.csv` o `appointments-import-example.json`
+## Consejos y Mejores Prácticas
 
-## Reglas de Validación
+1. **Prueba con pocos registros primero**: Importa 5-10 registros para verificar que el formato es correcto
+2. **Mantén backups**: Guarda copias de tus archivos originales
+3. **IDs únicos**: Asegúrate de que los IDs personalizados sean únicos
+4. **Formato de fechas**: Usa siempre YYYY-MM-DD para las fechas
+5. **Formato de horas**: Usa formato de 24 horas HH:MM
 
-### Formatos de Datos
+## 📝 Codificación de Archivos CSV
 
-1. **Fechas**: Usar formato ISO 8601 (YYYY-MM-DD)
-   - Ejemplo: `2024-12-25`
+### Problema Común: Caracteres Especiales (ñ, á, é, í, ó, ú)
 
-2. **Horas**: Usar formato de 24 horas (HH:MM)
-   - Ejemplo: `14:30`
+Si al importar un archivo CSV ves caracteres extraños como `?` en lugar de `ñ` o acentos, es un problema de codificación.
 
-3. **Teléfonos**: Incluir código de país (recomendado)
-   - Ejemplo: `+52 55 1234 5678`
+### ✅ Solución Automática
 
-4. **Género**: Usar valores exactos
-   - Válidos: `MALE`, `FEMALE`, `OTHER`
+El sistema **detecta automáticamente** la codificación del archivo y la convierte correctamente. Verás un mensaje verde indicando la codificación detectada:
 
-5. **Estado de Citas**: Usar valores exactos
-   - Válidos: `PENDING`, `CONFIRMED`, `IN_CONSULTATION`, `TRANSFER_PENDING`, `COMPLETED`, `CANCELLED`, `PAID`, `NO_SHOW`, `REQUIRES_RESCHEDULE`
+- **UTF-8**: La codificación estándar y recomendada
+- **Windows-1252**: Común en archivos exportados desde Excel en Windows
 
-6. **Métodos de Pago**: Usar valores exactos
-   - Válidos: `CASH`, `DEBIT_CARD`, `CREDIT_CARD`, `TRANSFER`
+### 📋 Cómo Guardar CSV desde Excel con la Codificación Correcta
 
-7. **Booleanos**: Usar valores exactos
-   - Válidos: `true`, `false` (en minúsculas)
+#### Opción 1: CSV UTF-8 (Recomendado)
 
-### Consideraciones Importantes
+1. En Excel, ve a **Archivo > Guardar como**
+2. En "Tipo", selecciona **CSV UTF-8 (delimitado por comas) (\*.csv)**
+3. Guarda el archivo
 
-1. **Unicidad**
-   - Cédulas de doctores deben ser únicas
-   - Emails de usuarios deben ser únicos
-   - No puede haber dos citas para el mismo doctor a la misma hora
-   - No puede haber dos citas en la misma sala a la misma hora
+#### Opción 2: CSV Estándar (también funciona)
 
-2. **Referencias**
-   - Al importar citas, los pacientes y doctores referenciados deben existir previamente
-   - Los tipos de cita y salas se buscan por nombre (opcional)
-   - Si no se encuentra un tipo de cita o sala, la cita se crea sin esa relación
+1. En Excel, ve a **Archivo > Guardar como**
+2. En "Tipo", selecciona **CSV (delimitado por comas) (\*.csv)**
+3. Guarda el archivo
+4. El sistema detectará automáticamente la codificación Windows-1252 y la convertirá
 
-3. **Codificación**
-   - Los archivos CSV deben usar codificación UTF-8
-   - Usar comillas dobles para campos con comas o saltos de línea
+#### Opción 3: Desde Google Sheets
 
-4. **Límites**
-   - Máximo 1000 registros por archivo recomendado
-   - Tamaño máximo de archivo: 5 MB
+1. Abre tu hoja de cálculo en Google Sheets
+2. Ve a **Archivo > Descargar > Valores separados por comas (.csv)**
+3. Google Sheets exporta automáticamente en UTF-8
 
-## Proceso de Importación
+### 🔍 Verificar que los Caracteres se Importaron Correctamente
 
-1. **Preparar el archivo**
-   - Descargar el archivo de ejemplo correspondiente
-   - Completar con sus datos siguiendo el formato
-   - Verificar que todos los campos requeridos estén presentes
+Después de importar:
 
-2. **Subir el archivo**
-   - Ir a la sección "Importar Datos" en el menú
-   - Seleccionar el tipo de importación
-   - Subir el archivo (CSV o JSON)
+1. Ve a la sección de Pacientes/Doctores
+2. Verifica que los nombres con `ñ` y acentos se vean correctamente
+3. Si ves `?` o caracteres raros, reporta el problema
 
-3. **Validación**
-   - El sistema validará los datos automáticamente
-   - Se mostrarán los errores encontrados si los hay
-   - Corregir los errores y volver a intentar
+### ⚠️ Qué NO Hacer
 
-4. **Confirmación**
-   - Revisar el resumen de registros a importar
-   - Confirmar la importación
-   - Esperar a que el proceso termine
-
-5. **Resultados**
-   - Se mostrará un resumen con:
-     - Registros exitosos
-     - Registros con errores
-     - Detalles de cada error
+- **NO** edites archivos CSV en Bloc de notas sin especificar codificación UTF-8
+- **NO** uses programas antiguos que no soporten UTF-8
+- **NO** copies y pegues datos entre diferentes programas sin verificar la codificación
 
 ## Solución de Problemas
 
-### Errores Comunes
+### Error: "Missing required fields"
 
-1. **"Invalid date format"**
-   - Verificar que las fechas estén en formato YYYY-MM-DD
+- Verifica que todos los campos requeridos estén presentes
+- Para pacientes: firstName, lastName, customIdClinic, customIdDoctor, customIdNumber
 
-2. **"Doctor not found"**
-   - Verificar que la cédula del doctor exista en el sistema
+### Error: "Patient with customId XXX already exists"
 
-3. **"Email already exists"**
-   - El email ya está registrado, usar otro diferente
+- El ID personalizado debe ser único
+- Verifica que no hayas importado ese paciente anteriormente
+- Cambia el `customIdNumber` a uno que no esté en uso
 
-4. **"Doctor has appointment conflict"**
-   - Ya existe una cita a esa hora para ese doctor
+### Error: "Clinic ID is required"
 
-5. **"Room has appointment conflict"**
-   - Ya existe una cita a esa hora en esa sala
+- Debes seleccionar una clínica antes de importar
+- Si eres admin, selecciona la clínica en el formulario
 
-6. **"Patient with customId XXX already exists"**
-   - El ID de paciente ya existe, usar otro o no proporcionar customId
+## Contacto y Soporte
 
-7. **"Invalid gender / status / paymentMethod"**
-   - Verificar que se usen los valores exactos mencionados arriba
-
-## Recomendaciones
-
-1. **Hacer pruebas pequeñas primero**
-   - Importar 5-10 registros inicialmente
-   - Verificar que todo funcione correctamente
-   - Luego proceder con importaciones más grandes
-
-2. **Mantener backups**
-   - Guardar copias de los archivos originales
-   - Exportar datos antes de importaciones masivas
-
-3. **Validar datos previamente**
-   - Verificar formatos antes de subir
-   - Eliminar registros duplicados
-   - Completar campos requeridos
-
-4. **Importar en orden**
-   - Primero: Doctores (crea usuarios automáticamente)
-   - Segundo: Pacientes
-   - Tercero: Tipos de cita y Consultorios (si aún no existen)
-   - Cuarto: Citas
-
-5. **Pacientes Temporales**
-   - Usar modo básico para registro rápido
-   - Completar información posteriormente desde la interfaz
-   - Marcar `pendingCompletion: true` explícitamente o dejar campos vacíos
-
-## Soporte
-
-Si tiene problemas con la importación:
-
-1. Revisar los mensajes de error
-2. Consultar esta guía
-3. Verificar los archivos de ejemplo
-4. Contactar al administrador del sistema
+Si tienes problemas con la importación, contacta al equipo de soporte técnico.

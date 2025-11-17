@@ -1,0 +1,6 @@
+firstName,lastName,secondLastName,customIdClinic,customIdDoctor,customIdNumber,phone,email
+José,Peña,Muñoz,ABC,DFG,1,555-0001,jose.pena@example.com
+María,Núñez,González,ABC,DFG,2,555-0002,maria.nunez@example.com
+Ramón,Añez,López,ABC,DFG,3,555-0003,ramon.anez@example.com
+Sofía,Ibáñez,Martínez,ABC,DFG,4,555-0004,sofia.ibanez@example.com
+Ángel,Ordóñez,Sánchez,ABC,DFG,5,555-0005,angel.ordonez@example.com

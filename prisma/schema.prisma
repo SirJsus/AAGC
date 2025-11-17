@@ -75,7 +75,6 @@ model User {
   phone            String?
   address          String?
   dateOfBirth      DateTime?
-  specialty        String? // For DOCTOR role
   licenseNumber    String?   @unique // For DOCTOR role
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
@@ -182,6 +181,7 @@ model Doctor {
   exceptions   DoctorException[]
   appointments Appointment[]
   patients     Patient[]
+  specialties  DoctorSpecialty[]
 
   @@index([clinicId])
   @@index([isActive])
@@ -226,6 +226,39 @@ model DoctorException {
   @@index([doctorId])
   @@index([date])
   @@index([isActive])
+}
+
+model Specialty {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  description String?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  doctors DoctorSpecialty[]
+
+  @@index([isActive])
+}
+
+model DoctorSpecialty {
+  id          String    @id @default(cuid())
+  doctorId    String
+  specialtyId String
+  isPrimary   Boolean   @default(false) // Marca si es la especialidad principal
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, specialtyId])
+  @@index([doctorId])
+  @@index([specialtyId])
+  @@index([isPrimary])
 }
 
 enum Gender {
@@ -350,6 +383,7 @@ model Appointment {
   appointmentTypeId String?
   customReason      String?
   customPrice       Decimal?          @db.Decimal(10, 2)
+  durationMin       Int?              // Custom duration in minutes (overrides appointmentType duration)
   date              DateTime // Stored as UTC DateTime
   startTime         String // HH:MM format
   endTime           String // HH:MM format

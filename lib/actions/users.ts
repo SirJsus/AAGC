@@ -29,7 +29,8 @@ const createUserSchema = z.object({
   role: z.nativeEnum(Role),
   clinicId: z.string().optional(),
   // Doctor-specific fields
-  specialty: z.string().optional(),
+  specialtyIds: z.array(z.string()).optional(), // Array de IDs de especialidades
+  primarySpecialtyId: z.string().optional(), // ID de especialidad principal
   licenseNumber: z.string().optional(),
   acronym: z.string().optional(),
   roomId: z.string().optional(),
@@ -45,7 +46,8 @@ const updateUserSchema = z.object({
   clinicId: z.string().optional(),
   isActive: z.boolean(),
   // Doctor-specific fields
-  specialty: z.string().optional(),
+  specialtyIds: z.array(z.string()).optional(), // Array de IDs de especialidades
+  primarySpecialtyId: z.string().optional(), // ID de especialidad principal
   licenseNumber: z.string().optional(),
   acronym: z.string().optional(),
   roomId: z.string().optional(),
@@ -98,7 +100,6 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
       phone: validatedData.phone || null,
       role: validatedData.role,
       clinicId: clinicId || null,
-      specialty: validatedData.specialty || null,
       licenseNumber: validatedData.licenseNumber || null,
     },
     include: {
@@ -119,7 +120,7 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
       acronym = `${firstInitial}${lastInitial}${secondLastInitial}`;
     }
 
-    await prisma.doctor.create({
+    const doctor = await prisma.doctor.create({
       data: {
         userId: user.id,
         clinicId: clinicId!,
@@ -128,6 +129,24 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
         isActive: true,
       },
     });
+
+    // Asignar especialidades al doctor
+    if (validatedData.specialtyIds && validatedData.specialtyIds.length > 0) {
+      const specialtyAssignments = validatedData.specialtyIds.map(
+        (specialtyId, index) => ({
+          doctorId: doctor.id,
+          specialtyId: specialtyId,
+          // Si hay primarySpecialtyId definido, usarlo; si no, la primera es la principal
+          isPrimary: validatedData.primarySpecialtyId
+            ? specialtyId === validatedData.primarySpecialtyId
+            : index === 0,
+        })
+      );
+
+      await prisma.doctorSpecialty.createMany({
+        data: specialtyAssignments,
+      });
+    }
   }
 
   revalidatePath("/users");
@@ -178,7 +197,6 @@ export async function updateUser(
       role: validatedData.role,
       clinicId: clinicId || null,
       isActive: validatedData.isActive,
-      specialty: validatedData.specialty || null,
       licenseNumber: validatedData.licenseNumber || null,
     },
     include: {
@@ -217,7 +235,7 @@ export async function updateUser(
           validatedData.lastName,
           validatedData.secondLastName
         );
-      await prisma.doctor.create({
+      const doctor = await prisma.doctor.create({
         data: {
           userId: user.id,
           clinicId: clinicId,
@@ -226,6 +244,22 @@ export async function updateUser(
           isActive: true,
         },
       });
+
+      // Asignar especialidades si se proporcionan
+      if (validatedData.specialtyIds && validatedData.specialtyIds.length > 0) {
+        const specialtyAssignments = validatedData.specialtyIds.map(
+          (specialtyId, index) => ({
+            doctorId: doctor.id,
+            specialtyId: specialtyId,
+            isPrimary: validatedData.primarySpecialtyId
+              ? specialtyId === validatedData.primarySpecialtyId
+              : index === 0,
+          })
+        );
+        await prisma.doctorSpecialty.createMany({
+          data: specialtyAssignments,
+        });
+      }
     } else {
       // Update existing doctor record
       const acronym = validatedData.acronym || existingDoctor.acronym;
@@ -238,6 +272,30 @@ export async function updateUser(
           isActive: validatedData.isActive,
         },
       });
+
+      // Actualizar especialidades
+      if (validatedData.specialtyIds !== undefined) {
+        // Eliminar especialidades existentes
+        await prisma.doctorSpecialty.deleteMany({
+          where: { doctorId: existingDoctor.id },
+        });
+
+        // Agregar nuevas especialidades
+        if (validatedData.specialtyIds.length > 0) {
+          const specialtyAssignments = validatedData.specialtyIds.map(
+            (specialtyId, index) => ({
+              doctorId: existingDoctor.id,
+              specialtyId: specialtyId,
+              isPrimary: validatedData.primarySpecialtyId
+                ? specialtyId === validatedData.primarySpecialtyId
+                : index === 0,
+            })
+          );
+          await prisma.doctorSpecialty.createMany({
+            data: specialtyAssignments,
+          });
+        }
+      }
     }
   } else if (user.role === Role.DOCTOR && existingUser.role === Role.DOCTOR) {
     // Still a doctor, update the doctor record
@@ -255,6 +313,30 @@ export async function updateUser(
           isActive: validatedData.isActive,
         },
       });
+
+      // Actualizar especialidades si se proporcionan
+      if (validatedData.specialtyIds !== undefined) {
+        // Eliminar especialidades existentes
+        await prisma.doctorSpecialty.deleteMany({
+          where: { doctorId: existingDoctor.id },
+        });
+
+        // Agregar nuevas especialidades
+        if (validatedData.specialtyIds.length > 0) {
+          const specialtyAssignments = validatedData.specialtyIds.map(
+            (specialtyId, index) => ({
+              doctorId: existingDoctor.id,
+              specialtyId: specialtyId,
+              isPrimary: validatedData.primarySpecialtyId
+                ? specialtyId === validatedData.primarySpecialtyId
+                : index === 0,
+            })
+          );
+          await prisma.doctorSpecialty.createMany({
+            data: specialtyAssignments,
+          });
+        }
+      }
     } else {
       // Doctor record doesn't exist, create it
       if (!clinicId) {
@@ -267,7 +349,7 @@ export async function updateUser(
           validatedData.lastName,
           validatedData.secondLastName
         );
-      await prisma.doctor.create({
+      const doctor = await prisma.doctor.create({
         data: {
           userId: user.id,
           clinicId: clinicId,
@@ -276,9 +358,25 @@ export async function updateUser(
           isActive: validatedData.isActive,
         },
       });
+
+      // Asignar especialidades si se proporcionan
+      if (validatedData.specialtyIds && validatedData.specialtyIds.length > 0) {
+        const specialtyAssignments = validatedData.specialtyIds.map(
+          (specialtyId, index) => ({
+            doctorId: doctor.id,
+            specialtyId: specialtyId,
+            isPrimary: validatedData.primarySpecialtyId
+              ? specialtyId === validatedData.primarySpecialtyId
+              : index === 0,
+          })
+        );
+        await prisma.doctorSpecialty.createMany({
+          data: specialtyAssignments,
+        });
+      }
     }
   } else if (user.role !== Role.DOCTOR && existingUser.role === Role.DOCTOR) {
-    // Role changed from DOCTOR, delete the doctor record
+    // Role changed from DOCTOR, delete the doctor record (cascade will delete specialties)
     await prisma.doctor.delete({ where: { userId: user.id } }).catch(() => {
       // Ignore errors if doctor record doesn't exist for some reason
     });
@@ -325,28 +423,109 @@ export async function deleteUser(id: string) {
   revalidatePath("/doctors");
 }
 
-export async function getUsers() {
+export async function getUsers(params?: {
+  search?: string;
+  role?: string;
+  status?: string;
+  clinicId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
     throw new Error("Unauthorized");
   }
 
-  const whereClause =
-    session.user.role === Role.ADMIN
-      ? { isActive: true }
-      : {
-          isActive: true,
-          clinicId: session.user.clinicId,
-        };
+  const {
+    search = "",
+    role = "all",
+    status = "all",
+    clinicId = "all",
+    page = 1,
+    pageSize = 20,
+  } = params || {};
 
-  return prisma.user.findMany({
+  // Build where clause
+  const whereClause: any = {
+    deletedAt: null,
+  };
+
+  // Status filter
+  if (status === "active") {
+    whereClause.isActive = true;
+  } else if (status === "inactive") {
+    whereClause.isActive = false;
+  }
+
+  // Clinic filter
+  if (session.user.role === Role.ADMIN) {
+    if (clinicId === "none") {
+      whereClause.clinicId = null;
+    } else if (clinicId !== "all") {
+      whereClause.clinicId = clinicId;
+    }
+  } else {
+    // Non-admin users only see users from their clinic
+    whereClause.clinicId = session.user.clinicId;
+  }
+
+  // Role filter
+  if (role !== "all") {
+    whereClause.role = role;
+  }
+
+  // Search filter
+  if (search) {
+    whereClause.OR = [
+      { firstName: { contains: search, mode: "insensitive" } },
+      { lastName: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Get total count
+  const total = await prisma.user.count({
+    where: whereClause,
+  });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Get users with pagination
+  const users = await prisma.user.findMany({
     where: whereClause,
     include: {
       clinic: true,
+      doctor: {
+        select: {
+          id: true,
+          acronym: true,
+          roomId: true,
+          specialties: {
+            include: {
+              specialty: true,
+            },
+            orderBy: {
+              isPrimary: "desc",
+            },
+          },
+        },
+      },
     },
-    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    orderBy: [{ role: "asc" }, { firstName: "asc" }],
+    skip,
+    take: pageSize,
   });
+
+  return {
+    users,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }
 
 export async function resetUserPassword(userId: string) {

@@ -62,7 +62,39 @@ async function main() {
 
   console.log("Clinic created:", clinic.name);
 
-  // 3. Create Clinic Admin
+  // 3. Create Clinic Schedule (Monday to Friday, 10:00 - 20:00)
+  console.log("Creating clinic schedule...");
+  const scheduleData = [
+    { weekday: 1, day: "Lunes" }, // Monday
+    { weekday: 2, day: "Martes" }, // Tuesday
+    { weekday: 3, day: "Miércoles" }, // Wednesday
+    { weekday: 4, day: "Jueves" }, // Thursday
+    { weekday: 5, day: "Viernes" }, // Friday
+  ];
+
+  for (const schedule of scheduleData) {
+    await prisma.clinicSchedule.upsert({
+      where: {
+        clinicId_weekday_startTime_endTime: {
+          clinicId: clinic.id,
+          weekday: schedule.weekday,
+          startTime: "10:00",
+          endTime: "20:00",
+        },
+      },
+      update: {},
+      create: {
+        clinicId: clinic.id,
+        weekday: schedule.weekday,
+        startTime: "10:00",
+        endTime: "20:00",
+        isActive: true,
+      },
+    });
+    console.log(`Schedule created: ${schedule.day} 10:00 - 20:00`);
+  }
+
+  // 4. Create Clinic Admin
   console.log("Creating clinic admin...");
   const clinicAdmin = await prisma.user.upsert({
     where: { email: "admin.clinica@aagc.com" },
@@ -82,7 +114,7 @@ async function main() {
 
   console.log("Clinic admin created:", clinicAdmin.email);
 
-  // 4. Create Reception Users
+  // 5. Create Reception Users
   console.log("Creating reception users...");
   const receptionUsers = [];
 
@@ -98,6 +130,12 @@ async function main() {
       firstName: "Recepción",
       lastName: "Dos",
       phone: "5551234569",
+    },
+    {
+      email: "recepcion3@aagc.com",
+      firstName: "Recepción",
+      lastName: "Tres",
+      phone: "5551234570",
     },
   ];
 
@@ -121,7 +159,7 @@ async function main() {
     console.log("Reception user created:", user.email);
   }
 
-  // 5. Create Nurse
+  // 6. Create Nurse
   console.log("Creating nurse...");
   const nurse = await prisma.user.upsert({
     where: { email: "enfermero@demo.com" },
@@ -141,7 +179,7 @@ async function main() {
 
   console.log("Nurse created:", nurse.email);
 
-  // 6. Create Rooms for Doctors
+  // 7. Create Rooms for Doctors
   console.log("Creating rooms...");
   const rooms = [];
 
@@ -167,7 +205,95 @@ async function main() {
 
   console.log(`${rooms.length} rooms created`);
 
-  // 7. Create Doctors
+  // 8. Create Specialties
+  console.log("Creating specialties...");
+  const specialtiesData = [
+    {
+      name: "Cirugía Cardiovascular y Torácica",
+      description: "Especialidad quirúrgica enfocada en el corazón y tórax",
+    },
+    {
+      name: "Asistencia Circulatoria y Trasplantes Torácicos",
+      description: "Especialidad en asistencia mecánica y trasplantes",
+    },
+    {
+      name: "Cardiología",
+      description: "Especialidad médica del corazón",
+    },
+    {
+      name: "Ecocardiografía",
+      description: "Especialidad en imágenes cardíacas por ultrasonido",
+    },
+    {
+      name: "Cirugía Vascular, Endovascular y Angiología",
+      description: "Especialidad en cirugía de vasos sanguíneos",
+    },
+    {
+      name: "Cardiología Intervencionista Estructural",
+      description: "Intervencionismo en estructuras cardíacas",
+    },
+    {
+      name: "Cardiología del Deporte",
+      description: "Cardiología aplicada al deporte y atletas",
+    },
+    {
+      name: "Medicina Interna",
+      description: "Medicina general de adultos",
+    },
+    {
+      name: "Cardiología Clínica",
+      description: "Cardiología enfocada en consulta y diagnóstico",
+    },
+    {
+      name: "Cardiología Intervencionista",
+      description: "Procedimientos invasivos cardíacos",
+    },
+    {
+      name: "Cardiología Nuclear",
+      description: "Diagnóstico cardíaco con medicina nuclear",
+    },
+    {
+      name: "Imagen Cardiovascular no Invasiva",
+      description: "Técnicas de imagen no invasivas del corazón",
+    },
+    {
+      name: "Cirugía Cardiotorácica",
+      description: "Cirugía del corazón y tórax",
+    },
+    {
+      name: "Cirugía Cardíaca de Mínima Invasión",
+      description: "Técnicas quirúrgicas mínimamente invasivas",
+    },
+    {
+      name: "Intervencionismo Cardíaco",
+      description: "Procedimientos cardíacos percutáneos",
+    },
+    {
+      name: "Nutrición Clínica y Deportiva",
+      description: "Nutrición aplicada a la salud y el deporte",
+    },
+    {
+      name: "Cirugía Cardiovascular y Cardiotorácica",
+      description: "Cirugía del corazón y vasos sanguíneos",
+    },
+  ];
+
+  const specialties = new Map();
+  for (const data of specialtiesData) {
+    const specialty = await prisma.specialty.upsert({
+      where: { name: data.name },
+      update: {},
+      create: {
+        name: data.name,
+        description: data.description,
+        isActive: true,
+      },
+    });
+    specialties.set(data.name, specialty);
+    console.log(`Specialty created: ${specialty.name}`);
+  }
+
+  // 9. Create Doctors
   console.log("Creating doctors...");
   const doctorsData = [
     {
@@ -175,8 +301,11 @@ async function main() {
       firstName: "Moisés C.",
       lastName: "Calderón",
       secondLastName: "Abbo",
-      specialty:
-        "Cirugía Cardiovascular y Torácica / Asistencia Circulatoria y Trasplantes Torácicos",
+      specialties: [
+        "Cirugía Cardiovascular y Torácica",
+        "Asistencia Circulatoria y Trasplantes Torácicos",
+      ],
+      primarySpecialty: "Cirugía Cardiovascular y Torácica",
       licenseNumber: "LIC001",
       phone: "+52 1 55 9198 2258",
       acronym: "MCA",
@@ -186,7 +315,8 @@ async function main() {
       firstName: "Andrés",
       lastName: "Pérez",
       secondLastName: "Bañuelos",
-      specialty: "Cardiología / Ecocardiografía",
+      specialties: ["Cardiología", "Ecocardiografía"],
+      primarySpecialty: "Cardiología",
       licenseNumber: "LIC002",
       phone: "44 2186 5918",
       acronym: "APB",
@@ -196,7 +326,8 @@ async function main() {
       firstName: "Karen",
       lastName: "Moedano",
       secondLastName: "",
-      specialty: "Cirugía Vascular, Endovascular y Angiología",
+      specialties: ["Cirugía Vascular, Endovascular y Angiología"],
+      primarySpecialty: "Cirugía Vascular, Endovascular y Angiología",
       licenseNumber: "LIC003",
       phone: "55 1224 8550",
       acronym: "KMO",
@@ -206,8 +337,11 @@ async function main() {
       firstName: "Fernando",
       lastName: "Gómez",
       secondLastName: "Peña",
-      specialty:
-        "Cardiólogo Intervencionista Estructural / Cardiología del Deporte",
+      specialties: [
+        "Cardiología Intervencionista Estructural",
+        "Cardiología del Deporte",
+      ],
+      primarySpecialty: "Cardiología Intervencionista Estructural",
       licenseNumber: "LIC004",
       phone: "56 1170 0220",
       acronym: "FGP",
@@ -217,7 +351,8 @@ async function main() {
       firstName: "Alejandro G.",
       lastName: "Quintero",
       secondLastName: "Novella",
-      specialty: "Medicina Interna / Cardiología Clínica",
+      specialties: ["Medicina Interna", "Cardiología Clínica"],
+      primarySpecialty: "Medicina Interna",
       licenseNumber: "LIC005",
       phone: "55 5073 8571",
       acronym: "AQN",
@@ -227,7 +362,8 @@ async function main() {
       firstName: "Manuel",
       lastName: "Carrillo",
       secondLastName: "Cornejo",
-      specialty: "Cardiología Intervencionista / Cardiología del Deporte",
+      specialties: ["Cardiología Intervencionista", "Cardiología del Deporte"],
+      primarySpecialty: "Cardiología Intervencionista",
       licenseNumber: "LIC006",
       phone: "55 9189 0300",
       acronym: "MCC",
@@ -237,8 +373,12 @@ async function main() {
       firstName: "Nadia",
       lastName: "Canseco",
       secondLastName: "León",
-      specialty:
-        "Cardiología / Cardiología Nuclear / Imagen Cardiovascular no Invasiva",
+      specialties: [
+        "Cardiología",
+        "Cardiología Nuclear",
+        "Imagen Cardiovascular no Invasiva",
+      ],
+      primarySpecialty: "Cardiología",
       licenseNumber: "LIC007",
       phone: "55 4377 7802",
       acronym: "NCL",
@@ -248,8 +388,12 @@ async function main() {
       firstName: "Alain Ledu",
       lastName: "Lara",
       secondLastName: "Calvillo",
-      specialty:
-        "Cirugía Cardiotorácica / Cirugía Cardíaca de Mínima Invasión / Intervencionismo cardíaco",
+      specialties: [
+        "Cirugía Cardiotorácica",
+        "Cirugía Cardíaca de Mínima Invasión",
+        "Intervencionismo Cardíaco",
+      ],
+      primarySpecialty: "Cirugía Cardiotorácica",
       licenseNumber: "LIC008",
       phone: "55 3670 6983",
       acronym: "ALC",
@@ -259,7 +403,8 @@ async function main() {
       firstName: "Mauricio",
       lastName: "Damián",
       secondLastName: "Gómez",
-      specialty: "Cirugía Cardiovascular y Cardiotorácica",
+      specialties: ["Cirugía Cardiovascular y Cardiotorácica"],
+      primarySpecialty: "Cirugía Cardiovascular y Cardiotorácica",
       licenseNumber: "LIC009",
       phone: "55 1950 6666",
       acronym: "MDG",
@@ -269,7 +414,8 @@ async function main() {
       firstName: "Victoria",
       lastName: "Fernández",
       secondLastName: "Pellón",
-      specialty: "Nutrición Clínica y Deportiva",
+      specialties: ["Nutrición Clínica y Deportiva"],
+      primarySpecialty: "Nutrición Clínica y Deportiva",
       licenseNumber: "LIC010",
       phone: "55 6422 2086",
       acronym: "VFP",
@@ -292,7 +438,6 @@ async function main() {
         role: Role.DOCTOR,
         clinicId: clinic.id,
         phone: data.phone,
-        specialty: data.specialty,
         licenseNumber: data.licenseNumber,
         address: "Ciudad de México, México",
         dateOfBirth: new Date("1975-01-01"),
@@ -312,7 +457,31 @@ async function main() {
       },
     });
 
-    console.log(`Doctor created: ${doctorUser.email} (${data.specialty})`);
+    // Assign specialties to doctor
+    for (const specialtyName of data.specialties) {
+      const specialty = specialties.get(specialtyName);
+      if (specialty) {
+        const isPrimary = specialtyName === data.primarySpecialty;
+        await prisma.doctorSpecialty.upsert({
+          where: {
+            doctorId_specialtyId: {
+              doctorId: doctor.id,
+              specialtyId: specialty.id,
+            },
+          },
+          update: {},
+          create: {
+            doctorId: doctor.id,
+            specialtyId: specialty.id,
+            isPrimary: isPrimary,
+          },
+        });
+      }
+    }
+
+    console.log(
+      `Doctor created: ${doctorUser.email} (${data.specialties.join(", ")})`
+    );
   }
 
   console.log("\n✅ Seed completed successfully!");
@@ -320,19 +489,22 @@ async function main() {
   console.log("- 1 Admin global");
   console.log("- 1 Clínica");
   console.log("- 1 Admin de clínica");
-  console.log("- 2 Recepcionistas");
+  console.log("- 3 Recepcionistas");
   console.log("- 1 Enfermero");
   console.log("- 10 Doctores");
   console.log("- 10 Consultorios");
+  console.log(`- ${specialtiesData.length} Especialidades`);
   console.log(
     "\n🔑 Todos los usuarios tienen la misma contraseña configurada en ADMIN_PASSWORD"
   );
   console.log("📧 Emails de los usuarios creados:");
   console.log("  - Admin: " + adminUsername);
-  console.log("  - Admin Clínica: admin.clinica@demo.com");
-  console.log("  - Recepción: recepcion1@demo.com, recepcion2@demo.com");
-  console.log("  - Enfermero: enfermero@demo.com");
-  console.log("  - Doctores: doctor1@demo.com a doctor10@demo.com");
+  console.log("  - Admin Clínica: admin.clinic@aagc.com");
+  console.log(
+    "  - Recepción: recepcion1@aagc.com, recepcion2@aagc.com, recepcion3@aagc.com"
+  );
+  console.log("  - Enfermero: enfermero@aagc.com");
+  console.log("  - Doctores: doctor1@aagc.com a doctor10@aagc.com");
 }
 
 main()

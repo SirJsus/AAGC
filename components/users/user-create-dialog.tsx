@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { createUser } from "@/lib/actions/users";
 import { toast } from "sonner";
 import { Plus, Eye, EyeOff, User, Stethoscope } from "lucide-react";
@@ -31,6 +32,7 @@ import { Role } from "@prisma/client";
 interface UserCreateDialogProps {
   clinics: { id: string; name: string }[];
   rooms: { id: string; name: string; clinicId: string }[];
+  specialties: { id: string; name: string }[];
   currentUserRole: Role;
   currentUserClinicId?: string | null;
 }
@@ -38,6 +40,7 @@ interface UserCreateDialogProps {
 export function UserCreateDialog({
   clinics,
   rooms,
+  specialties,
   currentUserRole,
   currentUserClinicId,
 }: UserCreateDialogProps) {
@@ -57,7 +60,8 @@ export function UserCreateDialog({
     role: "RECEPTION" as Role,
     clinicId: currentUserRole === "ADMIN" ? "" : currentUserClinicId || "",
     // Doctor-specific fields
-    specialty: "",
+    specialtyIds: [] as string[], // Array de IDs de especialidades
+    primarySpecialtyId: "", // ID de la especialidad principal
     licenseNumber: "",
     acronym: "",
     roomId: "",
@@ -104,7 +108,7 @@ export function UserCreateDialog({
 
     // Validación adicional para doctores
     if (formData.role === "DOCTOR") {
-      if (!formData.specialty || !formData.licenseNumber) {
+      if (formData.specialtyIds.length === 0 || !formData.licenseNumber) {
         toast.error(
           "Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'"
         );
@@ -126,7 +130,9 @@ export function UserCreateDialog({
       await createUser({
         ...formData,
         clinicId: formData.clinicId || undefined,
-        specialty: formData.specialty || undefined,
+        specialtyIds:
+          formData.specialtyIds.length > 0 ? formData.specialtyIds : undefined,
+        primarySpecialtyId: formData.primarySpecialtyId || undefined,
         licenseNumber: formData.licenseNumber || undefined,
         acronym: formData.acronym || undefined,
         roomId: formData.roomId || undefined,
@@ -145,7 +151,8 @@ export function UserCreateDialog({
         phone: "",
         role: "RECEPTION",
         clinicId: currentUserRole === "ADMIN" ? "" : currentUserClinicId || "",
-        specialty: "",
+        specialtyIds: [],
+        primarySpecialtyId: "",
         licenseNumber: "",
         acronym: "",
         roomId: "",
@@ -493,23 +500,71 @@ export function UserCreateDialog({
               {formData.role === "DOCTOR" ? (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="specialty">Especialidad *</Label>
-                    <Input
-                      id="specialty"
-                      required={formData.role === "DOCTOR"}
-                      value={formData.specialty}
-                      onChange={(e) =>
-                        setFormData({ ...formData, specialty: e.target.value })
+                    <Label htmlFor="specialties">Especialidades *</Label>
+                    <MultiSelect
+                      options={specialties.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                      }))}
+                      selected={formData.specialtyIds}
+                      onChange={(selected) =>
+                        setFormData({
+                          ...formData,
+                          specialtyIds: selected,
+                          // Si solo hay una especialidad seleccionada, hacerla principal automáticamente
+                          primarySpecialtyId:
+                            selected.length === 1
+                              ? selected[0]
+                              : formData.primarySpecialtyId &&
+                                  selected.includes(formData.primarySpecialtyId)
+                                ? formData.primarySpecialtyId
+                                : "",
+                        })
                       }
-                      placeholder="Ej: Cardióloga"
-                      minLength={3}
-                      title="Ingrese la especialidad médica del doctor"
+                      placeholder="Seleccionar especialidades..."
+                      className="w-full"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Ejemplos: Cardióloga, Pediatría, Traumatología, Medicina
-                      General
+                      Seleccione una o más especialidades médicas
                     </p>
                   </div>
+
+                  {formData.specialtyIds.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="primarySpecialty">
+                        Especialidad Principal *
+                      </Label>
+                      <Select
+                        value={formData.primarySpecialtyId || ""}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            primarySpecialtyId: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="primarySpecialty">
+                          <SelectValue placeholder="Seleccionar especialidad principal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.specialtyIds.map((specialtyId) => {
+                            const specialty = specialties.find(
+                              (s) => s.id === specialtyId
+                            );
+                            return (
+                              <SelectItem key={specialtyId} value={specialtyId}>
+                                {specialty?.name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        La especialidad principal aparecerá primero en los
+                        listados
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="licenseNumber">

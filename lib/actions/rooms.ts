@@ -115,40 +115,88 @@ export async function getRooms() {
 }
 
 // New: return all rooms (active + inactive) for user's clinic, or for ADMIN return all rooms
-export async function getAllRooms(opts?: { clinicId?: string }) {
+export async function getAllRooms(params?: {
+  clinicId?: string;
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
     throw new Error("Unauthorized");
   }
 
-  // Admin: can optionally filter by clinicId
-  if (session.user.role === "ADMIN") {
-    const whereClause = opts?.clinicId ? { clinicId: opts.clinicId } : {};
+  const {
+    clinicId = "all",
+    search = "",
+    status = "active",
+    page = 1,
+    pageSize = 20,
+  } = params || {};
 
-    const rooms = await prisma.room.findMany({
-      where: whereClause,
-      include: { clinic: true },
-      orderBy: [
-        { clinic: { name: "asc" } },
-        { isActive: "desc" },
-        { name: "asc" },
-      ],
-    });
+  // Build where clause
+  const whereClause: any = {};
 
-    const clinics = await prisma.clinic.findMany({ orderBy: { name: "asc" } });
-
-    return { rooms, clinics };
+  // Status filter
+  if (status === "active") {
+    whereClause.isActive = true;
+  } else if (status === "inactive") {
+    whereClause.isActive = false;
   }
 
-  // Non-admin: return all rooms for the user's clinic (active and inactive)
-  const clinicId = session.user.clinicId || "";
+  // Clinic filter
+  if (session.user.role === "ADMIN") {
+    if (clinicId !== "all") {
+      whereClause.clinicId = clinicId;
+    }
+  } else {
+    // Non-admin users only see rooms from their clinic
+    whereClause.clinicId = session.user.clinicId || "";
+  }
 
-  const rooms = await prisma.room.findMany({
-    where: { clinicId },
-    include: { clinic: true },
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+  // Search filter
+  if (search) {
+    whereClause.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { location: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Get total count
+  const total = await prisma.room.count({
+    where: whereClause,
   });
 
-  return { rooms, clinics: [] };
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Get rooms with pagination
+  const rooms = await prisma.room.findMany({
+    where: whereClause,
+    include: { clinic: true },
+    orderBy: [
+      { clinic: { name: "asc" } },
+      { isActive: "desc" },
+      { name: "asc" },
+    ],
+    skip,
+    take: pageSize,
+  });
+
+  // Get clinics (only for ADMIN)
+  const clinics =
+    session.user.role === "ADMIN"
+      ? await prisma.clinic.findMany({ orderBy: { name: "asc" } })
+      : [];
+
+  return {
+    rooms,
+    clinics,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }

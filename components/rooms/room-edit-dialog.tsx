@@ -64,7 +64,7 @@ export function RoomEditDialog({
   const loadClinics = async () => {
     try {
       const data = await getClinics();
-      setClinics(data);
+      setClinics(data.clinics);
     } catch (error) {
       toast.error("Error al cargar clínicas");
     }

@@ -346,14 +346,40 @@ export async function deletePatient(id: string) {
   revalidatePath("/patients");
 }
 
-export async function getPatients() {
+// New interface for pagination and filters
+export interface GetPatientsParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: "active" | "inactive" | "all";
+  gender?: Gender | "all";
+  doctorId?: string | "all";
+  pendingCompletion?: boolean | "all";
+}
+
+export async function getPatients(params: GetPatientsParams = {}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canViewPatients(session.user)) {
     throw new Error("Unauthorized");
   }
 
-  // For doctors, only show patients they have attended
+  const {
+    page = 1,
+    pageSize = 20,
+    search = "",
+    status = "all",
+    gender = "all",
+    doctorId = "all",
+    pendingCompletion = "all",
+  } = params;
+
+  const skip = (page - 1) * pageSize;
+
+  // Build where clause
+  const baseWhere: any = {};
+
+  // Role-based filtering
   if (session.user.role === "DOCTOR") {
     // Get the doctor record for this user
     const doctor = await prisma.doctor.findUnique({
@@ -361,16 +387,13 @@ export async function getPatients() {
     });
 
     if (!doctor) {
-      return [];
+      return { patients: [], total: 0, totalPages: 0, currentPage: page };
     }
 
     // Get all unique patient IDs from appointments with this doctor
     const appointments = await prisma.appointment.findMany({
       where: {
         doctorId: doctor.id,
-        patient: {
-          isActive: true,
-        },
       },
       select: {
         patientId: true,
@@ -381,37 +404,55 @@ export async function getPatients() {
     const patientIds = appointments.map((a) => a.patientId);
 
     if (patientIds.length === 0) {
-      return [];
+      return { patients: [], total: 0, totalPages: 0, currentPage: page };
     }
 
-    const patients = await prisma.patient.findMany({
-      where: {
-        id: { in: patientIds },
-        isActive: true,
-      },
-      include: {
-        clinic: true,
-        doctor: {
-          include: { user: true },
-        },
-      },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    });
-
-    return patients;
+    baseWhere.id = { in: patientIds };
+  } else if (session.user.role !== "ADMIN") {
+    baseWhere.clinicId = session.user.clinicId || "";
   }
 
-  // For other roles, show all patients in their clinic
-  const whereClause =
-    session.user.role === "ADMIN"
-      ? { isActive: true }
-      : {
-          isActive: true,
-          clinicId: session.user.clinicId || "",
-        };
+  // Status filter
+  if (status === "active") {
+    baseWhere.isActive = true;
+  } else if (status === "inactive") {
+    baseWhere.isActive = false;
+  }
 
+  // Gender filter
+  if (gender !== "all") {
+    baseWhere.gender = gender;
+  }
+
+  // Doctor filter
+  if (doctorId !== "all") {
+    baseWhere.doctorId = doctorId;
+  }
+
+  // Pending completion filter
+  if (pendingCompletion !== "all") {
+    baseWhere.pendingCompletion = pendingCompletion;
+  }
+
+  // Search filter
+  if (search) {
+    baseWhere.OR = [
+      { firstName: { contains: search, mode: "insensitive" } },
+      { lastName: { contains: search, mode: "insensitive" } },
+      { customId: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search } },
+      { email: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Get total count
+  const total = await prisma.patient.count({
+    where: baseWhere,
+  });
+
+  // Get paginated patients
   const patients = await prisma.patient.findMany({
-    where: whereClause,
+    where: baseWhere,
     include: {
       clinic: true,
       doctor: {
@@ -419,10 +460,18 @@ export async function getPatients() {
       },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    take: 500, // Limit for performance
+    skip,
+    take: pageSize,
   });
 
-  return patients;
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    patients,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }
 
 export async function getPatient(id: string) {

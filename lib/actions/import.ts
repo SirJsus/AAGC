@@ -126,10 +126,20 @@ async function processImportJob(
     if (job.fileName.endsWith(".json")) {
       records = JSON.parse(fileContent);
     } else if (job.fileName.endsWith(".csv")) {
-      records = parse(fileContent, {
+      // Asegurar que el contenido esté en UTF-8
+      // Remover BOM si existe
+      let cleanContent = fileContent;
+      if (cleanContent.charCodeAt(0) === 0xfeff) {
+        cleanContent = cleanContent.substring(1);
+      }
+
+      records = parse(cleanContent, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
+        bom: true, // Manejar BOM (Byte Order Mark) si está presente
+        relax_column_count: true, // Permitir columnas variables
+        skip_records_with_error: false,
       });
     } else {
       throw new Error("Formato de archivo no soportado");
@@ -207,60 +217,38 @@ async function importPatient(
     throw new Error("Clinic ID is required for patient import");
   }
 
-  // Validar campos requeridos MÍNIMOS (para modo básico/temporal)
-  if (!data.firstName || !data.lastName || !data.phone) {
-    throw new Error("Missing required fields: firstName, lastName, phone");
+  // Validar campos requeridos BÁSICOS
+  if (!data.firstName || !data.lastName) {
+    throw new Error("Missing required fields: firstName, lastName");
   }
 
-  // Validar que se proporcionen las 4 partes del customId (OBLIGATORIO)
+  // Validar campos del customId (solo 3 requeridos)
   if (
     !data.customIdClinic ||
     !data.customIdDoctor ||
-    !data.customIdLastName ||
     data.customIdNumber === undefined
   ) {
     throw new Error(
-      "Missing required ID fields: customIdClinic, customIdDoctor, customIdLastName, customIdNumber are mandatory"
+      "Missing required ID fields: customIdClinic, customIdDoctor, customIdNumber"
     );
   }
 
-  // Determinar si es paciente temporal o completo
-  // Es temporal si SOLO tiene los campos básicos o si explícitamente se marca
-  const isTemporary =
-    data.pendingCompletion === true ||
-    (!data.birthDate && !data.gender && !data.address);
-
-  // Buscar doctor si se proporciona (buscamos por el licenseNumber del usuario asociado)
-  let doctorId: string | null = null;
-  const doctorLicense =
-    data.doctorLicense || data.licenseNumber || data.license;
-  if (doctorLicense) {
-    const doctor = await prisma.doctor.findFirst({
-      where: {
-        clinicId,
-        deletedAt: null,
-        user: {
-          licenseNumber: doctorLicense,
-        },
-      },
-      include: { user: true },
-    });
-    doctorId = doctor?.id || null;
-  }
-
-  // Construir customId desde las 4 partes OBLIGATORIAS
+  // Construir customId desde las 3 partes + letra del apellido
   const clinicPart = data.customIdClinic.toString().trim();
   const doctorPart = data.customIdDoctor.toString().trim();
-  const lastNamePart = data.customIdLastName.toString().trim().toUpperCase();
+
+  // Extraer automáticamente la primera letra del apellido
+  const lastNamePart = data.lastName.charAt(0).toUpperCase();
+
   const numberPart = data.customIdNumber;
 
-  // Formatear el número con padding a 4 dígitos
+  // Formatear el número con padding a 3 dígitos
   const formattedNumber =
     typeof numberPart === "number"
       ? numberPart.toString().padStart(3, "0")
       : numberPart.toString().padStart(3, "0");
 
-  const customId = `${clinicPart}${doctorPart}${lastNamePart}${formattedNumber}`;
+  const customId = `${clinicPart}-${doctorPart}-${lastNamePart}${formattedNumber}`;
 
   // Verificar que el customId no exista
   const existing = await prisma.patient.findUnique({
@@ -271,45 +259,22 @@ async function importPatient(
     throw new Error(`Patient with customId ${customId} already exists`);
   }
 
-  // Crear el paciente con todos los campos disponibles
+  // Generar teléfono temporal si no se proporciona
+  const phone = data.phone || `temp-${Date.now()}`;
+
+  // Crear el paciente (modo simplificado)
   const patient = await prisma.patient.create({
     data: {
       customId,
-      customDoctorAcronym: data.customDoctorAcronym || null,
       firstName: data.firstName,
       lastName: data.lastName,
       secondLastName: data.secondLastName || null,
       noSecondLastName:
         data.noSecondLastName === true || data.noSecondLastName === "true",
-      phone: data.phone,
+      phone,
       email: data.email || null,
-      birthDate: data.birthDate ? new Date(data.birthDate) : null,
-      gender: data.gender || null,
-      address: data.address || null,
-
-      // Contacto de emergencia estructurado
-      emergencyContactFirstName: data.emergencyContactFirstName || null,
-      emergencyContactLastName: data.emergencyContactLastName || null,
-      emergencyContactSecondLastName:
-        data.emergencyContactSecondLastName || null,
-      emergencyContactNoSecondLastName:
-        data.emergencyContactNoSecondLastName === true ||
-        data.emergencyContactNoSecondLastName === "true",
-      emergencyContactPhone: data.emergencyContactPhone || null,
-
-      // Doctor primario externo (no el doctor asignado de la clínica)
-      primaryDoctorFirstName: data.primaryDoctorFirstName || null,
-      primaryDoctorLastName: data.primaryDoctorLastName || null,
-      primaryDoctorSecondLastName: data.primaryDoctorSecondLastName || null,
-      primaryDoctorNoSecondLastName:
-        data.primaryDoctorNoSecondLastName === true ||
-        data.primaryDoctorNoSecondLastName === "true",
-      primaryDoctorPhone: data.primaryDoctorPhone || null,
-
-      notes: data.notes || null,
       clinicId,
-      doctorId,
-      pendingCompletion: isTemporary,
+      pendingCompletion: true, // Siempre marcar como pendiente de completar
     },
   });
 
@@ -381,7 +346,6 @@ async function importDoctor(
           : null,
       role: Role.DOCTOR,
       clinicId,
-      specialty: data.specialty || null,
       licenseNumber: licenseNumber,
       isActive: data.isActive !== false && data.isActive !== "false",
     },
@@ -602,7 +566,11 @@ async function importAppointment(
     newValues: appointment as unknown as Prisma.JsonObject,
   });
 
-  return appointment;
+  // Convert Decimal to number for consistency
+  return {
+    ...appointment,
+    customPrice: appointment.customPrice?.toNumber() ?? null,
+  };
 }
 
 export async function deleteImportJob(id: string) {

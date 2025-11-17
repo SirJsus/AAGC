@@ -1,20 +1,21 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "@/components/providers";
 
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { Providers } from "@/components/providers"
+const inter = Inter({ subsets: ["latin"] });
 
-const inter = Inter({ subsets: ["latin"] })
-
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "AAGC - Medical Clinic Management",
-  description: "Comprehensive medical clinic management system for appointment scheduling and patient management",
+  description:
+    "Comprehensive medical clinic management system for appointment scheduling and patient management",
   metadataBase: new URL(process.env.NEXTAUTH_URL || "http://localhost:3000"),
   openGraph: {
     title: "AAGC - Medical Clinic Management",
-    description: "Comprehensive medical clinic management system for appointment scheduling and patient management",
+    description:
+      "Comprehensive medical clinic management system for appointment scheduling and patient management",
     images: ["/og-image.png"],
     type: "website",
   },
@@ -22,12 +23,12 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
-}
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -35,5 +36,5 @@ export default function RootLayout({
         <Providers>{children}</Providers>
       </body>
     </html>
-  )
+  );
 }

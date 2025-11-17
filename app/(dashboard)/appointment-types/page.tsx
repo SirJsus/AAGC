@@ -4,10 +4,23 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { Permissions } from "@/lib/permissions";
 import { AppointmentTypesClient } from "./appointment-types-client";
+import { getAppointmentTypes } from "@/lib/actions/appointment-types";
 
 export const dynamic = "force-dynamic";
 
-export default async function AppointmentTypesPage() {
+interface AppointmentTypesPageProps {
+  searchParams: {
+    search?: string;
+    status?: string;
+    clinicId?: string;
+    page?: string;
+    pageSize?: string;
+  };
+}
+
+export default async function AppointmentTypesPage({
+  searchParams,
+}: AppointmentTypesPageProps) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canViewAppointmentTypes(session.user)) {
@@ -16,25 +29,17 @@ export default async function AppointmentTypesPage() {
 
   const canManage = Permissions.canManageAppointmentTypes(session.user);
 
-  // Get appointment types based on role
-  const whereClause =
-    session.user.role === "ADMIN"
-      ? { deletedAt: null, isActive: true }
-      : {
-          clinicId: session.user.clinicId || "",
-          deletedAt: null,
-          isActive: true,
-        };
+  const page = parseInt(searchParams.page || "1");
+  const pageSize = parseInt(searchParams.pageSize || "20");
 
-  const appointmentTypes = await prisma.appointmentType.findMany({
-    where: whereClause,
-    include: {
-      clinic: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-  });
+  const { appointmentTypes, total, totalPages, currentPage } =
+    await getAppointmentTypes({
+      search: searchParams.search,
+      status: searchParams.status || "active",
+      clinicId: searchParams.clinicId,
+      page,
+      pageSize,
+    });
 
   // Get all clinics for admin users
   const clinics = await prisma.clinic.findMany({
@@ -50,7 +55,6 @@ export default async function AppointmentTypesPage() {
   // Convert Decimal to number for client compatibility
   const serializedAppointmentTypes = appointmentTypes.map((type) => ({
     ...type,
-    price: type.price.toNumber(),
     createdAt: type.createdAt.toISOString(),
     updatedAt: type.updatedAt.toISOString(),
     deletedAt: type.deletedAt?.toISOString() || null,
@@ -79,6 +83,9 @@ export default async function AppointmentTypesPage() {
       userRole={session.user.role}
       userClinicId={session.user.clinicId || undefined}
       canManage={canManage}
+      total={total}
+      totalPages={totalPages}
+      currentPage={currentPage}
     />
   );
 }

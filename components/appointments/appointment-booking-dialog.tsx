@@ -78,13 +78,19 @@ interface DoctorWithRelations extends Doctor {
     lastName: string;
     secondLastName: string | null;
     noSecondLastName: boolean;
-    specialty: string;
     licenseNumber: string | null;
   };
   clinic?: Clinic | null;
   // En la API/acciones se expone como `defaultRoom` (ver `lib/actions/doctors.ts`)
   defaultRoom?: Room | null;
   room?: Room | null;
+  specialties?: Array<{
+    specialty: {
+      id: string;
+      name: string;
+    };
+    isPrimary: boolean;
+  }>;
   schedules?: Array<{
     id: string;
     weekday: number;
@@ -151,6 +157,7 @@ export function AppointmentBookingDialog({
   const [customPrice, setCustomPrice] = useState("");
   const [customDuration, setCustomDuration] = useState("30");
   const [notes, setNotes] = useState("");
+  const [overrideDuration, setOverrideDuration] = useState(false); // Track if user wants to override duration
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -261,15 +268,7 @@ export function AppointmentBookingDialog({
   const loadDoctors = async () => {
     try {
       const data = await getDoctors();
-      // Ensure specialty is always a string
-      const normalizedData = data.map((doctor: any) => ({
-        ...doctor,
-        user: {
-          ...doctor.user,
-          specialty: doctor.user.specialty ?? "",
-        },
-      }));
-      setDoctors(normalizedData);
+      setDoctors(data.doctors);
     } catch (error) {
       toast.error("Error loading doctors");
     }
@@ -278,7 +277,7 @@ export function AppointmentBookingDialog({
   const loadAppointmentTypes = async () => {
     try {
       const data = await getAppointmentTypes();
-      setAppointmentTypes(data);
+      setAppointmentTypes(data.appointmentTypes);
     } catch (error) {
       toast.error("Error loading appointment types");
     }
@@ -296,7 +295,7 @@ export function AppointmentBookingDialog({
   const loadClinics = async () => {
     try {
       const data = await getClinics();
-      setClinics(data);
+      setClinics(data.clinics);
     } catch (error) {
       toast.error("Error loading clinics");
     }
@@ -397,8 +396,24 @@ export function AppointmentBookingDialog({
   };
 
   const handleSlotSelect = (slot: { startTime: string; endTime: string }) => {
-    setSelectedSlot(slot);
+    // Recalculate endTime based on selected duration
+    const duration = parseInt(customDuration) || 30;
+    const calculatedSlot = calculateEndTime(slot.startTime, duration);
+    setSelectedSlot(calculatedSlot);
     setStep("details");
+  };
+
+  // Helper function to calculate end time based on start time and duration
+  const calculateEndTime = (
+    startTime: string,
+    durationMin: number
+  ): { startTime: string; endTime: string } => {
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const totalMinutes = hours * 60 + minutes + durationMin;
+    const endHours = Math.floor(totalMinutes / 60);
+    const endMinutes = totalMinutes % 60;
+    const endTime = `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
+    return { startTime, endTime };
   };
 
   const handleBookAppointment = async () => {
@@ -427,6 +442,7 @@ export function AppointmentBookingDialog({
           selectedRoom && selectedRoom !== "none" ? selectedRoom : undefined,
         customReason: customReason || undefined,
         customPrice: customPrice ? parseFloat(customPrice) : undefined,
+        durationMin: parseInt(customDuration) || undefined,
         notes: notes || undefined,
       });
 
@@ -470,6 +486,7 @@ export function AppointmentBookingDialog({
       setCustomPrice("");
       setCustomDuration("30");
       setNotes("");
+      setOverrideDuration(false);
     }, 200);
   };
 
@@ -489,6 +506,7 @@ export function AppointmentBookingDialog({
       setCustomReason("");
       setCustomPrice("");
       setCustomDuration("30");
+      setOverrideDuration(false);
     } else {
       // Fill with type data
       const type = appointmentTypes.find((t) => t.id === typeId);
@@ -496,6 +514,7 @@ export function AppointmentBookingDialog({
         setCustomReason(type.name);
         setCustomPrice(type.price.toString());
         setCustomDuration(type.durationMin.toString());
+        setOverrideDuration(false); // Reset override when changing type
       }
     }
 
@@ -651,11 +670,14 @@ export function AppointmentBookingDialog({
                           {doctor.user.firstName} {doctor.user.lastName}{" "}
                           {doctor.user.secondLastName || ""}
                         </h4>
-                        {doctor.user.specialty && (
-                          <p className="text-sm text-muted-foreground">
-                            {doctor.user.specialty}
-                          </p>
-                        )}
+                        {doctor.specialties &&
+                          doctor.specialties.length > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {doctor.specialties.find((s) => s.isPrimary)
+                                ?.specialty.name ||
+                                doctor.specialties[0].specialty.name}
+                            </p>
+                          )}
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {doctor.user.licenseNumber}
@@ -1025,7 +1047,7 @@ export function AppointmentBookingDialog({
                       <div className="flex-1">
                         <h4 className="font-medium">{type.name}</h4>
                         <p className="text-sm text-muted-foreground">
-                          Duración: {type.durationMin} min • Precio: $
+                          Duración sugerida: {type.durationMin} min • Precio: $
                           {Number(type.price).toFixed(2)}
                         </p>
                         {type.preInstructions && (
@@ -1111,7 +1133,62 @@ export function AppointmentBookingDialog({
                 </CardContent>
               </Card>
 
-              <div>
+              <div className="space-y-4">
+                {/* Duration field - calculate slots */}
+                <Card className="bg-blue-50/50 border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Clock className="h-4 w-4" />
+                      Duración de la Cita
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedAppointmentType !== "custom"
+                        ? "La duración sugerida por el tipo de cita es " +
+                          appointmentTypes.find(
+                            (t) => t.id === selectedAppointmentType
+                          )?.durationMin +
+                          " minutos. Puedes modificarla según sea necesario."
+                        : "Especifica la duración de la cita en minutos"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="customDuration"
+                          type="number"
+                          min="5"
+                          step="5"
+                          value={customDuration}
+                          onChange={(e) => {
+                            const newDuration = e.target.value;
+                            setCustomDuration(newDuration);
+                            setOverrideDuration(true);
+                            // If a slot is already selected, recalculate the endTime
+                            if (selectedSlot && selectedSlot.startTime) {
+                              const duration = parseInt(newDuration) || 30;
+                              const recalculatedSlot = calculateEndTime(
+                                selectedSlot.startTime,
+                                duration
+                              );
+                              setSelectedSlot(recalculatedSlot);
+                            }
+                          }}
+                          placeholder="30"
+                          className="w-32"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          minutos
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Los horarios disponibles se ajustarán según la duración
+                        seleccionada.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {selectedDate && (
                   <SlotPicker
                     doctorId={selectedDoctor.id}
@@ -1196,6 +1273,10 @@ export function AppointmentBookingDialog({
                       {selectedSlot?.startTime} - {selectedSlot?.endTime}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Duración</p>
+                    <p className="font-medium">{customDuration} minutos</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1222,8 +1303,8 @@ export function AppointmentBookingDialog({
                         return (
                           <div className="mt-1 space-y-1">
                             <p className="text-sm text-muted-foreground">
-                              Duración: {type.durationMin} min | Precio: $
-                              {Number(type.price).toFixed(2)}
+                              Duración sugerida: {type.durationMin} min |
+                              Precio: ${Number(type.price).toFixed(2)}
                             </p>
                             {type.preInstructions && (
                               <p className="text-sm text-muted-foreground">
