@@ -501,8 +501,17 @@ export async function getUsers(params?: {
       clinic: true,
       doctor: {
         select: {
+          id: true,
           acronym: true,
           roomId: true,
+          specialties: {
+            include: {
+              specialty: true,
+            },
+            orderBy: {
+              isPrimary: "desc",
+            },
+          },
         },
       },
     },

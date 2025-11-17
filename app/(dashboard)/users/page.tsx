@@ -76,6 +76,16 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     orderBy: { name: "asc" },
   });
 
+  // Get specialties for doctor assignment
+  const specialties = await prisma.specialty.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -86,6 +96,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
         <UserCreateDialog
           clinics={clinics}
           rooms={rooms}
+          specialties={specialties}
           currentUserRole={session.user.role}
           currentUserClinicId={session.user.clinicId}
         />
@@ -97,6 +108,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
             users={users}
             clinics={clinics}
             rooms={rooms}
+            specialties={specialties}
             currentUserRole={session.user.role}
             currentUserClinicId={session.user.clinicId}
             total={total}

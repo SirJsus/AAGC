@@ -272,6 +272,10 @@ async function main() {
       name: "Nutrición Clínica y Deportiva",
       description: "Nutrición aplicada a la salud y el deporte",
     },
+    {
+      name: "Cirugía Cardiovascular y Cardiotorácica",
+      description: "Cirugía del corazón y vasos sanguíneos",
+    },
   ];
 
   const specialties = new Map();

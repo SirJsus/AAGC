@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -25,10 +25,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { createUser } from "@/lib/actions/users";
-import {
-  getActiveSpecialties,
-  createSpecialty,
-} from "@/lib/actions/specialties";
 import { toast } from "sonner";
 import { Plus, Eye, EyeOff, User, Stethoscope } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -36,6 +32,7 @@ import { Role } from "@prisma/client";
 interface UserCreateDialogProps {
   clinics: { id: string; name: string }[];
   rooms: { id: string; name: string; clinicId: string }[];
+  specialties: { id: string; name: string }[];
   currentUserRole: Role;
   currentUserClinicId?: string | null;
 }
@@ -43,18 +40,15 @@ interface UserCreateDialogProps {
 export function UserCreateDialog({
   clinics,
   rooms,
+  specialties,
   currentUserRole,
   currentUserClinicId,
 }: UserCreateDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
-  const [specialties, setSpecialties] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -85,51 +79,6 @@ export function UserCreateDialog({
     RECEPTION: "Recepcionista",
     NURSE: "Enfermero/a",
     DOCTOR: "Doctor",
-  };
-
-  // Cargar especialidades cuando se abre el diálogo
-  useEffect(() => {
-    if (open) {
-      loadSpecialties();
-    }
-  }, [open]);
-
-  const loadSpecialties = async () => {
-    setLoadingSpecialties(true);
-    try {
-      const result = await getActiveSpecialties();
-      if (result.success && result.data) {
-        setSpecialties(result.data);
-      } else {
-        toast.error("Error al cargar especialidades");
-        setSpecialties([]);
-      }
-    } catch (error) {
-      console.error("Error loading specialties:", error);
-      toast.error("Error al cargar especialidades");
-      setSpecialties([]);
-    } finally {
-      setLoadingSpecialties(false);
-    }
-  };
-
-  const handleCreateSpecialty = async (name: string) => {
-    try {
-      const result = await createSpecialty({ name });
-      if (result.success && result.data) {
-        // Agregar la nueva especialidad a la lista
-        setSpecialties((prev) => [...prev, result.data]);
-        toast.success(`Especialidad "${name}" creada exitosamente`);
-        return { value: result.data.id, label: result.data.name };
-      } else {
-        toast.error(result.error || "Error al crear especialidad");
-        return null;
-      }
-    } catch (error) {
-      console.error("Error creating specialty:", error);
-      toast.error("Error al crear especialidad");
-      return null;
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -552,43 +501,31 @@ export function UserCreateDialog({
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="specialties">Especialidades *</Label>
-                    {loadingSpecialties ? (
-                      <div className="rounded-md border border-input px-3 py-2 text-sm text-muted-foreground">
-                        Cargando especialidades...
-                      </div>
-                    ) : (
-                      <MultiSelect
-                        options={specialties.map((s) => ({
-                          value: s.id,
-                          label: s.name,
-                        }))}
-                        selected={formData.specialtyIds}
-                        onChange={(selected) =>
-                          setFormData({
-                            ...formData,
-                            specialtyIds: selected,
-                            // Si solo hay una especialidad seleccionada, hacerla principal automáticamente
-                            primarySpecialtyId:
-                              selected.length === 1
-                                ? selected[0]
-                                : formData.primarySpecialtyId &&
-                                    selected.includes(
-                                      formData.primarySpecialtyId
-                                    )
-                                  ? formData.primarySpecialtyId
-                                  : "",
-                          })
-                        }
-                        placeholder="Seleccionar o crear especialidades..."
-                        className="w-full"
-                        allowCreate={true}
-                        onCreateOption={handleCreateSpecialty}
-                        creatingLabel="Creando especialidad..."
-                      />
-                    )}
+                    <MultiSelect
+                      options={specialties.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                      }))}
+                      selected={formData.specialtyIds}
+                      onChange={(selected) =>
+                        setFormData({
+                          ...formData,
+                          specialtyIds: selected,
+                          // Si solo hay una especialidad seleccionada, hacerla principal automáticamente
+                          primarySpecialtyId:
+                            selected.length === 1
+                              ? selected[0]
+                              : formData.primarySpecialtyId &&
+                                  selected.includes(formData.primarySpecialtyId)
+                                ? formData.primarySpecialtyId
+                                : "",
+                        })
+                      }
+                      placeholder="Seleccionar especialidades..."
+                      className="w-full"
+                    />
                     <p className="text-xs text-muted-foreground">
-                      Seleccione especialidades existentes o escriba para crear
-                      una nueva
+                      Seleccione una o más especialidades médicas
                     </p>
                   </div>
 

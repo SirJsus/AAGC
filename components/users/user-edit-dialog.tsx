@@ -24,6 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { updateUser } from "@/lib/actions/users";
 import { toast } from "sonner";
 import { Edit, User, Stethoscope } from "lucide-react";
@@ -42,8 +43,18 @@ interface User {
   isActive: boolean;
   licenseNumber?: string | null;
   doctor?: {
+    id: string;
     acronym: string;
     roomId?: string | null;
+    specialties?: {
+      id: string;
+      specialtyId: string;
+      isPrimary: boolean;
+      specialty: {
+        id: string;
+        name: string;
+      };
+    }[];
   } | null;
 }
 
@@ -51,6 +62,7 @@ interface UserEditDialogProps {
   user: User;
   clinics: { id: string; name: string }[];
   rooms: { id: string; name: string; clinicId: string }[];
+  specialties: { id: string; name: string }[];
   currentUserRole: Role;
   currentUserClinicId?: string | null;
 }
@@ -59,6 +71,7 @@ export function UserEditDialog({
   user,
   clinics,
   rooms,
+  specialties,
   currentUserRole,
   currentUserClinicId,
 }: UserEditDialogProps) {
@@ -66,6 +79,13 @@ export function UserEditDialog({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+
+  // Extract current specialty IDs and primary specialty
+  const currentSpecialtyIds =
+    user.doctor?.specialties?.map((s) => s.specialtyId) || [];
+  const currentPrimarySpecialtyId =
+    user.doctor?.specialties?.find((s) => s.isPrimary)?.specialtyId || "";
+
   const [formData, setFormData] = useState({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -78,6 +98,8 @@ export function UserEditDialog({
     licenseNumber: user.licenseNumber || "",
     acronym: user.doctor?.acronym || "",
     roomId: user.doctor?.roomId || "",
+    specialtyIds: currentSpecialtyIds,
+    primarySpecialtyId: currentPrimarySpecialtyId,
   });
 
   // Determine which roles can be assigned
@@ -124,6 +146,10 @@ export function UserEditDialog({
         licenseNumber: formData.licenseNumber || undefined,
         acronym: formData.acronym || undefined,
         roomId: formData.roomId || undefined,
+        specialtyIds:
+          formData.role === "DOCTOR" ? formData.specialtyIds : undefined,
+        primarySpecialtyId:
+          formData.role === "DOCTOR" ? formData.primarySpecialtyId : undefined,
       });
 
       toast.success("Usuario actualizado exitosamente");
@@ -361,13 +387,72 @@ export function UserEditDialog({
             <TabsContent value="doctor" className="space-y-4 mt-4">
               {formData.role === "DOCTOR" ? (
                 <>
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
-                    <p className="text-sm text-blue-800">
-                      💡 Las especialidades médicas ahora se gestionan desde la
-                      página de <strong>Doctores</strong>. Allí podrás asignar
-                      múltiples especialidades y marcar una como principal.
+                  <div className="space-y-2">
+                    <Label htmlFor="specialties">Especialidades</Label>
+                    <MultiSelect
+                      options={specialties.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                      }))}
+                      selected={formData.specialtyIds}
+                      onChange={(selected) =>
+                        setFormData({
+                          ...formData,
+                          specialtyIds: selected,
+                          // Si se deselecciona la especialidad principal, limpiar o usar la primera
+                          primarySpecialtyId: selected.includes(
+                            formData.primarySpecialtyId
+                          )
+                            ? formData.primarySpecialtyId
+                            : selected[0] || "",
+                        })
+                      }
+                      placeholder="Seleccionar especialidades"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Opcional. Puedes seleccionar múltiples especialidades
+                      médicas.
                     </p>
                   </div>
+
+                  {formData.specialtyIds.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="primarySpecialty">
+                        Especialidad Principal
+                      </Label>
+                      <Select
+                        value={
+                          formData.primarySpecialtyId ||
+                          formData.specialtyIds[0]
+                        }
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            primarySpecialtyId: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="primarySpecialty">
+                          <SelectValue placeholder="Seleccionar especialidad principal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.specialtyIds.map((specialtyId) => {
+                            const specialty = specialties.find(
+                              (s) => s.id === specialtyId
+                            );
+                            return (
+                              <SelectItem key={specialtyId} value={specialtyId}>
+                                {specialty?.name || specialtyId}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        Esta será la especialidad que se mostrará por defecto
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="licenseNumber">
