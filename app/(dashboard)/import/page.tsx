@@ -113,8 +113,10 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      // Leer el contenido del archivo
-      const fileContent = await file.text();
+      // Leer el contenido del archivo con codificación UTF-8
+      const arrayBuffer = await file.arrayBuffer();
+      const decoder = new TextDecoder("utf-8");
+      const fileContent = decoder.decode(arrayBuffer);
 
       const clinicId = isAdmin ? selectedClinicId : userClinicId || undefined;
 

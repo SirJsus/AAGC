@@ -111,33 +111,82 @@ export async function deleteDoctor(id: string) {
   revalidatePath("/doctors");
 }
 
-export async function getDoctors() {
+export async function getDoctors(params?: {
+  search?: string;
+  status?: string;
+  clinicId?: string;
+  specialty?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
     throw new Error("Unauthorized");
   }
 
-  const whereClause =
-    session.user.role === "ADMIN"
-      ? {
-          isActive: true,
-          deletedAt: null,
-          user: {
-            isActive: true,
-            deletedAt: null,
-          },
-        }
-      : {
-          isActive: true,
-          deletedAt: null,
-          clinicId: session.user.clinicId || "",
-          user: {
-            isActive: true,
-            deletedAt: null,
-          },
-        };
+  const {
+    search = "",
+    status = "active",
+    clinicId = "all",
+    specialty = "all",
+    page = 1,
+    pageSize = 20,
+  } = params || {};
 
+  // Build where clause
+  const whereClause: any = {
+    deletedAt: null,
+  };
+
+  // Status filter
+  if (status === "active") {
+    whereClause.isActive = true;
+  } else if (status === "inactive") {
+    whereClause.isActive = false;
+  }
+
+  // Clinic filter (only for ADMIN)
+  if (session.user.role === "ADMIN") {
+    if (clinicId !== "all") {
+      whereClause.clinicId = clinicId;
+    }
+  } else {
+    // Non-admin users only see doctors from their clinic
+    whereClause.clinicId = session.user.clinicId || "";
+  }
+
+  // User filters
+  whereClause.user = {
+    deletedAt: null,
+  };
+
+  // Search filter
+  if (search) {
+    whereClause.user.OR = [
+      { firstName: { contains: search, mode: "insensitive" } },
+      { lastName: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { licenseNumber: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  // Specialty filter
+  if (specialty !== "all") {
+    whereClause.user.specialty = specialty;
+  }
+
+  // Get total count
+  const total = await prisma.doctor.count({
+    where: whereClause,
+  });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Get doctors with pagination
   const doctors = await prisma.doctor.findMany({
     where: whereClause,
     include: {
@@ -163,6 +212,8 @@ export async function getDoctors() {
       },
     },
     orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
+    skip,
+    take: pageSize,
   });
 
   // Map schedules to include clinic schedules as fallback
@@ -190,7 +241,12 @@ export async function getDoctors() {
     };
   });
 
-  return doctorsWithSchedules;
+  return {
+    doctors: doctorsWithSchedules,
+    total,
+    totalPages,
+    currentPage: page,
+  };
 }
 
 export async function getDoctor(id: string) {
@@ -322,4 +378,49 @@ export async function getDoctorByUserId() {
     ...doctor,
     schedules,
   };
+}
+
+export async function getDoctorSpecialties() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    throw new Error("Unauthorized");
+  }
+
+  const whereClause: any = {
+    deletedAt: null,
+    user: {
+      deletedAt: null,
+      specialty: {
+        not: null,
+      },
+    },
+  };
+
+  // Non-admin users only see doctors from their clinic
+  if (session.user.role !== "ADMIN") {
+    whereClause.clinicId = session.user.clinicId || "";
+  }
+
+  const doctors = await prisma.doctor.findMany({
+    where: whereClause,
+    select: {
+      user: {
+        select: {
+          specialty: true,
+        },
+      },
+    },
+  });
+
+  // Get unique specialties
+  const specialties = Array.from(
+    new Set(
+      doctors
+        .map((d) => d.user?.specialty)
+        .filter((s): s is string => s !== null && s !== undefined)
+    )
+  ).sort();
+
+  return specialties;
 }

@@ -130,6 +130,8 @@ async function processImportJob(
         columns: true,
         skip_empty_lines: true,
         trim: true,
+        encoding: "utf8",
+        bom: true, // Manejar BOM (Byte Order Mark) si está presente
       });
     } else {
       throw new Error("Formato de archivo no soportado");
