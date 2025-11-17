@@ -38,6 +38,7 @@ export default function ImportPage() {
   const [result, setResult] = useState<any>(null);
   const [clinics, setClinics] = useState<any[]>([]);
   const [selectedClinicId, setSelectedClinicId] = useState<string>("");
+  const [detectedEncoding, setDetectedEncoding] = useState<string | null>(null);
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -86,6 +87,7 @@ export default function ImportPage() {
 
       setFile(selectedFile);
       setResult(null);
+      setDetectedEncoding(null);
     }
   };
 
@@ -113,10 +115,44 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      // Leer el contenido del archivo con codificación UTF-8
+      // Leer el contenido del archivo con detección de codificación
       const arrayBuffer = await file.arrayBuffer();
-      const decoder = new TextDecoder("utf-8");
-      const fileContent = decoder.decode(arrayBuffer);
+
+      // Intentar detectar si tiene BOM UTF-8
+      const bytes = new Uint8Array(arrayBuffer);
+      let encoding = "utf-8";
+
+      // Detectar BOM UTF-8 (EF BB BF)
+      if (
+        bytes.length >= 3 &&
+        bytes[0] === 0xef &&
+        bytes[1] === 0xbb &&
+        bytes[2] === 0xbf
+      ) {
+        encoding = "utf-8";
+      }
+      // Si no tiene BOM, intentar con diferentes codificaciones comunes
+      else {
+        // Intentar primero con UTF-8
+        try {
+          const testDecoder = new TextDecoder("utf-8", { fatal: true });
+          testDecoder.decode(arrayBuffer);
+          encoding = "utf-8";
+        } catch {
+          // Si falla UTF-8, usar windows-1252 (común en CSV de Excel en español)
+          encoding = "windows-1252";
+        }
+      }
+
+      setDetectedEncoding(encoding);
+
+      const decoder = new TextDecoder(encoding);
+      let fileContent = decoder.decode(arrayBuffer);
+
+      // Remover BOM si existe
+      if (fileContent.charCodeAt(0) === 0xfeff) {
+        fileContent = fileContent.substring(1);
+      }
 
       const clinicId = isAdmin ? selectedClinicId : userClinicId || undefined;
 
@@ -271,9 +307,21 @@ export default function ImportPage() {
                 />
               </div>
               {file && (
-                <p className="text-sm text-muted-foreground">
-                  Tamaño: {(file.size / 1024).toFixed(2)} KB
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Tamaño: {(file.size / 1024).toFixed(2)} KB
+                  </p>
+                  {detectedEncoding && (
+                    <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2 py-1">
+                      <p className="text-xs text-green-800 dark:text-green-200">
+                        ✓ Codificación detectada:{" "}
+                        <strong>{detectedEncoding.toUpperCase()}</strong>
+                        {detectedEncoding === "windows-1252" &&
+                          " (común en archivos de Excel)"}
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -603,6 +651,14 @@ export default function ImportPage() {
                     • Prueba con 5-10 registros antes de importaciones masivas
                   </li>
                   <li>• Mantén backups de tus archivos originales</li>
+                  <li>
+                    • Si ves caracteres raros (¿, �), el sistema detectará
+                    automáticamente la codificación correcta
+                  </li>
+                  <li>
+                    • Para archivos de Excel, guarda como CSV (delimitado por
+                    comas) con codificación UTF-8
+                  </li>
                 </ul>
               </div>
             </div>
