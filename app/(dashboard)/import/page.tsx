@@ -330,65 +330,48 @@ export default function ImportPage() {
 
                 <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/40 rounded-md border border-blue-200 dark:border-blue-800">
                   <p className="text-sm font-medium text-blue-950 dark:text-blue-50 mb-1">
-                    💡 Dos Modos de Importación
+                    💡 Importación Simplificada
                   </p>
-                  <ul className="text-xs text-blue-900 dark:text-blue-100 space-y-1">
-                    <li>
-                      • <strong>Modo Básico</strong>: Solo campos esenciales →
-                      Paciente temporal
-                    </li>
-                    <li>
-                      • <strong>Modo Completo</strong>: Todos los campos →
-                      Paciente completo
-                    </li>
-                  </ul>
+                  <p className="text-xs text-blue-900 dark:text-blue-100">
+                    Solo necesitas proporcionar los datos básicos. La letra del
+                    apellido para el ID se extrae automáticamente.
+                  </p>
                 </div>
 
                 <p className="text-sm text-muted-foreground mt-3">
-                  <strong>Campos requeridos (Modo Básico):</strong>
+                  <strong>Campos requeridos:</strong>
                 </p>
                 <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
                   <li>firstName (Nombre)</li>
-                  <li>lastName (Apellido)</li>
-                  <li>phone (Teléfono)</li>
-                  <li>customIdClinic (Acrónimo clínica, ej: CE)</li>
-                  <li>customIdDoctor (Acrónimo doctor, ej: EH)</li>
-                  <li>customIdLastName (Letra apellido, ej: G)</li>
-                  <li>customIdNumber (Número, ej: 1 o 001)</li>
+                  <li>lastName (Apellido - se usará la 1ª letra para el ID)</li>
+                  <li>customIdClinic (Acrónimo clínica, ej: ABC)</li>
+                  <li>customIdDoctor (Acrónimo doctor, ej: DFG)</li>
+                  <li>customIdNumber (Número consecutivo, ej: 1)</li>
                 </ul>
 
                 <p className="text-sm text-muted-foreground mt-2">
-                  <strong>Campos adicionales (Modo Completo):</strong>
+                  <strong>Campos opcionales:</strong>
                 </p>
                 <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                  <li>secondLastName, noSecondLastName, email</li>
-                  <li>birthDate (YYYY-MM-DD), gender (MALE/FEMALE/OTHER)</li>
-                  <li>address, notes</li>
-                  <li>doctorLicense (licencia del doctor asignado)</li>
-                </ul>
-
-                <p className="text-sm text-muted-foreground mt-2">
-                  <strong>Contacto de emergencia:</strong>
-                </p>
-                <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                  <li>emergencyContactFirstName, emergencyContactLastName</li>
+                  <li>secondLastName (Segundo apellido)</li>
                   <li>
-                    emergencyContactSecondLastName,
-                    emergencyContactNoSecondLastName
+                    noSecondLastName (true/false - si no tiene 2º apellido)
                   </li>
-                  <li>emergencyContactPhone</li>
+                  <li>
+                    phone (Teléfono - se genera temporal si no se proporciona)
+                  </li>
+                  <li>email (Correo electrónico)</li>
                 </ul>
 
-                <p className="text-sm text-muted-foreground mt-2">
-                  <strong>Doctor primario externo:</strong>
-                </p>
-                <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                  <li>primaryDoctorFirstName, primaryDoctorLastName</li>
-                  <li>
-                    primaryDoctorSecondLastName, primaryDoctorNoSecondLastName
-                  </li>
-                  <li>primaryDoctorPhone</li>
-                </ul>
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800">
+                  <p className="text-xs text-amber-900 dark:text-amber-100">
+                    <strong>Ejemplo de ID personalizado:</strong>
+                    <br />
+                    Si importas: lastName="Benítez", customIdClinic="ABC",
+                    customIdDoctor="DFG", customIdNumber=1
+                    <br />→ Se generará el ID: <strong>ABC-DFG-B001</strong>
+                  </p>
+                </div>
               </div>
             )}
 
@@ -510,66 +493,28 @@ export default function ImportPage() {
                 Archivos de ejemplo con datos de pacientes
               </p>
               <div className="space-y-2">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Modo Completo:
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    asChild
-                  >
-                    <a href="/examples/patients-import-example.csv" download>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Ejemplo CSV
-                    </a>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    asChild
-                  >
-                    <a href="/examples/patients-import-example.json" download>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Ejemplo JSON
-                    </a>
-                  </Button>
-                </div>
-                <div className="space-y-1 pt-2 border-t">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Modo Básico:
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    asChild
-                  >
-                    <a
-                      href="/examples/patients-basic-import-example.csv"
-                      download
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Ejemplo CSV
-                    </a>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    asChild
-                  >
-                    <a
-                      href="/examples/patients-basic-import-example.json"
-                      download
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Ejemplo JSON
-                    </a>
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <a href="/examples/patients-import-example.csv" download>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Ejemplo CSV
+                  </a>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <a href="/examples/patients-import-example.json" download>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Ejemplo JSON
+                  </a>
+                </Button>
               </div>
             </div>
 
