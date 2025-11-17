@@ -78,13 +78,19 @@ interface DoctorWithRelations extends Doctor {
     lastName: string;
     secondLastName: string | null;
     noSecondLastName: boolean;
-    specialty: string;
     licenseNumber: string | null;
   };
   clinic?: Clinic | null;
   // En la API/acciones se expone como `defaultRoom` (ver `lib/actions/doctors.ts`)
   defaultRoom?: Room | null;
   room?: Room | null;
+  specialties?: Array<{
+    specialty: {
+      id: string;
+      name: string;
+    };
+    isPrimary: boolean;
+  }>;
   schedules?: Array<{
     id: string;
     weekday: number;
@@ -262,15 +268,7 @@ export function AppointmentBookingDialog({
   const loadDoctors = async () => {
     try {
       const data = await getDoctors();
-      // Ensure specialty is always a string
-      const normalizedData = data.map((doctor: any) => ({
-        ...doctor,
-        user: {
-          ...doctor.user,
-          specialty: doctor.user.specialty ?? "",
-        },
-      }));
-      setDoctors(normalizedData);
+      setDoctors(data.doctors);
     } catch (error) {
       toast.error("Error loading doctors");
     }
@@ -279,7 +277,7 @@ export function AppointmentBookingDialog({
   const loadAppointmentTypes = async () => {
     try {
       const data = await getAppointmentTypes();
-      setAppointmentTypes(data);
+      setAppointmentTypes(data.appointmentTypes);
     } catch (error) {
       toast.error("Error loading appointment types");
     }
@@ -297,7 +295,7 @@ export function AppointmentBookingDialog({
   const loadClinics = async () => {
     try {
       const data = await getClinics();
-      setClinics(data);
+      setClinics(data.clinics);
     } catch (error) {
       toast.error("Error loading clinics");
     }
@@ -672,11 +670,14 @@ export function AppointmentBookingDialog({
                           {doctor.user.firstName} {doctor.user.lastName}{" "}
                           {doctor.user.secondLastName || ""}
                         </h4>
-                        {doctor.user.specialty && (
-                          <p className="text-sm text-muted-foreground">
-                            {doctor.user.specialty}
-                          </p>
-                        )}
+                        {doctor.specialties &&
+                          doctor.specialties.length > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {doctor.specialties.find((s) => s.isPrimary)
+                                ?.specialty.name ||
+                                doctor.specialties[0].specialty.name}
+                            </p>
+                          )}
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {doctor.user.licenseNumber}

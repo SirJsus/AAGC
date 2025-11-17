@@ -45,8 +45,18 @@ interface User {
   specialty?: string | null;
   licenseNumber?: string | null;
   doctor?: {
+    id: string;
     acronym: string;
     roomId?: string | null;
+    specialties?: {
+      id: string;
+      specialtyId: string;
+      isPrimary: boolean;
+      specialty: {
+        id: string;
+        name: string;
+      };
+    }[];
   } | null;
 }
 
@@ -54,6 +64,7 @@ interface UsersTableProps {
   users: User[];
   clinics: { id: string; name: string }[];
   rooms: { id: string; name: string; clinicId: string }[];
+  specialties: { id: string; name: string }[];
   currentUserRole: Role;
   currentUserClinicId?: string | null;
   total: number;
@@ -65,6 +76,7 @@ export function UsersTable({
   users,
   clinics,
   rooms,
+  specialties,
   currentUserRole,
   currentUserClinicId,
   total,
@@ -366,6 +378,7 @@ export function UsersTable({
                         user={user}
                         clinics={clinics}
                         rooms={rooms}
+                        specialties={specialties}
                         currentUserRole={currentUserRole}
                         currentUserClinicId={currentUserClinicId}
                       />

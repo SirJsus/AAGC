@@ -57,7 +57,7 @@ export function RoomCreateDialog({
   const loadClinics = async () => {
     try {
       const data = await getClinics();
-      setClinics(data);
+      setClinics(data.clinics);
 
       // For non-admin users, automatically set their clinic
       if (!isAdmin && session?.user?.clinicId) {
@@ -65,8 +65,8 @@ export function RoomCreateDialog({
           ...prev,
           clinicId: session.user.clinicId || "",
         }));
-      } else if (data.length === 1) {
-        setFormData((prev) => ({ ...prev, clinicId: data[0].id }));
+      } else if (data.clinics.length === 1) {
+        setFormData((prev) => ({ ...prev, clinicId: data.clinics[0].id }));
       }
     } catch (error) {
       toast.error("Error al cargar clínicas");

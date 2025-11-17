@@ -30,6 +30,7 @@ El sistema ha sido simplificado para facilitar la importación rápida de pacien
 El sistema extrae **automáticamente** la primera letra del `lastName` para construir el ID personalizado.
 
 **Ejemplo:**
+
 - Si importas: `lastName="Benítez"`, `customIdClinic="ABC"`, `customIdDoctor="DFG"`, `customIdNumber=1`
 - Se generará el ID: **ABC-DFG-B001**
 
@@ -54,6 +55,7 @@ Carlos,López,Sánchez,false,ABC,DFG,5,,
 ```
 
 **IDs generados:**
+
 - Fila 1: `ABC` + `DFG` + `P` (de Pérez) + `001` → **ABC-DFG-P001**
 - Fila 2: `ABC` + `DFG` + `G` (de González) + `002` → **ABC-DFG-G002**
 - Fila 3: `ABC` + `DFG` + `R` (de Rodríguez) + `003` → **ABC-DFG-R003**
@@ -146,18 +148,69 @@ ABC-DFG-G002,LIC67890,2025-11-20,10:00,11:00,PENDING
 4. **Formato de fechas**: Usa siempre YYYY-MM-DD para las fechas
 5. **Formato de horas**: Usa formato de 24 horas HH:MM
 
+## 📝 Codificación de Archivos CSV
+
+### Problema Común: Caracteres Especiales (ñ, á, é, í, ó, ú)
+
+Si al importar un archivo CSV ves caracteres extraños como `?` en lugar de `ñ` o acentos, es un problema de codificación.
+
+### ✅ Solución Automática
+
+El sistema **detecta automáticamente** la codificación del archivo y la convierte correctamente. Verás un mensaje verde indicando la codificación detectada:
+
+- **UTF-8**: La codificación estándar y recomendada
+- **Windows-1252**: Común en archivos exportados desde Excel en Windows
+
+### 📋 Cómo Guardar CSV desde Excel con la Codificación Correcta
+
+#### Opción 1: CSV UTF-8 (Recomendado)
+
+1. En Excel, ve a **Archivo > Guardar como**
+2. En "Tipo", selecciona **CSV UTF-8 (delimitado por comas) (\*.csv)**
+3. Guarda el archivo
+
+#### Opción 2: CSV Estándar (también funciona)
+
+1. En Excel, ve a **Archivo > Guardar como**
+2. En "Tipo", selecciona **CSV (delimitado por comas) (\*.csv)**
+3. Guarda el archivo
+4. El sistema detectará automáticamente la codificación Windows-1252 y la convertirá
+
+#### Opción 3: Desde Google Sheets
+
+1. Abre tu hoja de cálculo en Google Sheets
+2. Ve a **Archivo > Descargar > Valores separados por comas (.csv)**
+3. Google Sheets exporta automáticamente en UTF-8
+
+### 🔍 Verificar que los Caracteres se Importaron Correctamente
+
+Después de importar:
+
+1. Ve a la sección de Pacientes/Doctores
+2. Verifica que los nombres con `ñ` y acentos se vean correctamente
+3. Si ves `?` o caracteres raros, reporta el problema
+
+### ⚠️ Qué NO Hacer
+
+- **NO** edites archivos CSV en Bloc de notas sin especificar codificación UTF-8
+- **NO** uses programas antiguos que no soporten UTF-8
+- **NO** copies y pegues datos entre diferentes programas sin verificar la codificación
+
 ## Solución de Problemas
 
 ### Error: "Missing required fields"
+
 - Verifica que todos los campos requeridos estén presentes
 - Para pacientes: firstName, lastName, customIdClinic, customIdDoctor, customIdNumber
 
 ### Error: "Patient with customId XXX already exists"
+
 - El ID personalizado debe ser único
 - Verifica que no hayas importado ese paciente anteriormente
 - Cambia el `customIdNumber` a uno que no esté en uso
 
 ### Error: "Clinic ID is required"
+
 - Debes seleccionar una clínica antes de importar
 - Si eres admin, selecciona la clínica en el formulario
 

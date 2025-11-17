@@ -174,7 +174,11 @@ export async function getDoctors(params?: {
 
   // Specialty filter
   if (specialty !== "all") {
-    whereClause.user.specialty = specialty;
+    whereClause.specialties = {
+      some: {
+        specialtyId: specialty,
+      },
+    };
   }
 
   // Get total count
@@ -209,6 +213,14 @@ export async function getDoctors(params?: {
           deletedAt: null,
         },
         orderBy: { weekday: "asc" },
+      },
+      specialties: {
+        include: {
+          specialty: true,
+        },
+        orderBy: {
+          isPrimary: "desc", // Principal primero
+        },
       },
     },
     orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
@@ -387,40 +399,20 @@ export async function getDoctorSpecialties() {
     throw new Error("Unauthorized");
   }
 
-  const whereClause: any = {
-    deletedAt: null,
-    user: {
+  // Obtener todas las especialidades únicas del sistema
+  const specialties = await prisma.specialty.findMany({
+    where: {
+      isActive: true,
       deletedAt: null,
-      specialty: {
-        not: null,
-      },
     },
-  };
-
-  // Non-admin users only see doctors from their clinic
-  if (session.user.role !== "ADMIN") {
-    whereClause.clinicId = session.user.clinicId || "";
-  }
-
-  const doctors = await prisma.doctor.findMany({
-    where: whereClause,
+    orderBy: {
+      name: "asc",
+    },
     select: {
-      user: {
-        select: {
-          specialty: true,
-        },
-      },
+      id: true,
+      name: true,
     },
   });
-
-  // Get unique specialties
-  const specialties = Array.from(
-    new Set(
-      doctors
-        .map((d) => d.user?.specialty)
-        .filter((s): s is string => s !== null && s !== undefined)
-    )
-  ).sort();
 
   return specialties;
 }

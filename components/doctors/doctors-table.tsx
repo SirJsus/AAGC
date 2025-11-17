@@ -1,6 +1,14 @@
 "use client";
 
-import { Doctor, Clinic, User, Room, DoctorSchedule } from "@prisma/client";
+import {
+  Doctor,
+  Clinic,
+  User,
+  Room,
+  DoctorSchedule,
+  DoctorSpecialty,
+  Specialty,
+} from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,9 +49,17 @@ interface DoctorWithRelations extends Doctor {
   user?: User | null;
   defaultRoom?: Room | null;
   schedules?: DoctorSchedule[];
+  specialties?: (DoctorSpecialty & {
+    specialty: Specialty;
+  })[];
 }
 
 interface ClinicOption {
+  id: string;
+  name: string;
+}
+
+interface SpecialtyOption {
   id: string;
   name: string;
 }
@@ -55,7 +71,7 @@ interface DoctorsTableProps {
   totalPages: number;
   currentPage: number;
   clinics: ClinicOption[];
-  specialties: string[];
+  specialties: SpecialtyOption[];
 }
 
 export function DoctorsTable({
@@ -248,8 +264,8 @@ export function DoctorsTable({
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   {specialties.map((spec) => (
-                    <SelectItem key={spec} value={spec as string}>
-                      {spec}
+                    <SelectItem key={spec.id} value={spec.id}>
+                      {spec.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -311,7 +327,29 @@ export function DoctorsTable({
                   Dr. {doctor?.user?.firstName} {doctor?.user?.lastName}
                 </TableCell>
                 <TableCell>{doctor?.user?.licenseNumber}</TableCell>
-                <TableCell>{doctor?.user?.specialty || "—"}</TableCell>
+                <TableCell>
+                  {doctor?.specialties && doctor.specialties.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {doctor.specialties
+                        .sort(
+                          (a, b) =>
+                            (b.isPrimary ? 1 : -1) - (a.isPrimary ? 1 : -1)
+                        )
+                        .map((ds) => (
+                          <Badge
+                            key={ds.id}
+                            variant={ds.isPrimary ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {ds.specialty.name}
+                            {ds.isPrimary && " ⭐"}
+                          </Badge>
+                        ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell>{doctor?.user?.phone || "—"}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">

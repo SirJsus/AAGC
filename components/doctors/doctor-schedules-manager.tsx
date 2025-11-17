@@ -69,13 +69,19 @@ interface Doctor {
     lastName: string;
     secondLastName: string | null;
     noSecondLastName: boolean;
-    specialty: string | null;
     licenseNumber: string | null;
   };
   clinic: {
     id: string;
     name: string;
   };
+  specialties?: Array<{
+    specialty: {
+      id: string;
+      name: string;
+    };
+    isPrimary: boolean;
+  }>;
 }
 
 interface Schedule {
@@ -190,7 +196,7 @@ export function DoctorSchedulesManager() {
   async function loadClinics() {
     try {
       const data = await getClinics();
-      setClinics(data);
+      setClinics(data.clinics);
     } catch (error) {
       console.error("Error loading clinics:", error);
       toast.error("Error al cargar las clínicas");
@@ -200,7 +206,7 @@ export function DoctorSchedulesManager() {
   async function loadDoctors() {
     try {
       const data = await getDoctors();
-      setDoctors(data);
+      setDoctors(data.doctors);
     } catch (error) {
       console.error("Error loading doctors:", error);
       toast.error("Error al cargar los doctores");
@@ -407,8 +413,12 @@ export function DoctorSchedulesManager() {
               {doctors[0] ? (
                 <span>
                   Dr. {doctors[0].user.firstName} {doctors[0].user.lastName}
-                  {doctors[0].user.specialty &&
-                    ` - ${doctors[0].user.specialty}`}
+                  {doctors[0].specialties &&
+                    doctors[0].specialties.length > 0 &&
+                    ` - ${
+                      doctors[0].specialties.find((s) => s.isPrimary)?.specialty
+                        .name || doctors[0].specialties[0].specialty.name
+                    }`}
                 </span>
               ) : (
                 <span>Mi perfil (cargando...)</span>
@@ -420,17 +430,22 @@ export function DoctorSchedulesManager() {
                 <SelectValue placeholder="Seleccione un doctor" />
               </SelectTrigger>
               <SelectContent>
-                {filteredDoctors.map((doctor) => (
-                  <SelectItem key={doctor.id} value={doctor.id}>
-                    Dr. {doctor.user.firstName} {doctor.user.lastName}
-                    {doctor.user.specialty && ` - ${doctor.user.specialty}`}
-                    {session?.user?.role === "ADMIN" && (
-                      <span className="text-muted-foreground text-xs ml-2">
-                        ({doctor.clinic.name})
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
+                {filteredDoctors.map((doctor) => {
+                  const primarySpecialty = doctor.specialties?.find(
+                    (s) => s.isPrimary
+                  )?.specialty?.name;
+                  return (
+                    <SelectItem key={doctor.id} value={doctor.id}>
+                      Dr. {doctor.user.firstName} {doctor.user.lastName}
+                      {primarySpecialty && ` - ${primarySpecialty}`}
+                      {session?.user?.role === "ADMIN" && (
+                        <span className="text-muted-foreground text-xs ml-2">
+                          ({doctor.clinic.name})
+                        </span>
+                      )}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           )}

@@ -126,12 +126,20 @@ async function processImportJob(
     if (job.fileName.endsWith(".json")) {
       records = JSON.parse(fileContent);
     } else if (job.fileName.endsWith(".csv")) {
-      records = parse(fileContent, {
+      // Asegurar que el contenido esté en UTF-8
+      // Remover BOM si existe
+      let cleanContent = fileContent;
+      if (cleanContent.charCodeAt(0) === 0xfeff) {
+        cleanContent = cleanContent.substring(1);
+      }
+
+      records = parse(cleanContent, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
-        encoding: "utf8",
         bom: true, // Manejar BOM (Byte Order Mark) si está presente
+        relax_column_count: true, // Permitir columnas variables
+        skip_records_with_error: false,
       });
     } else {
       throw new Error("Formato de archivo no soportado");
@@ -338,7 +346,6 @@ async function importDoctor(
           : null,
       role: Role.DOCTOR,
       clinicId,
-      specialty: data.specialty || null,
       licenseNumber: licenseNumber,
       isActive: data.isActive !== false && data.isActive !== "false",
     },
