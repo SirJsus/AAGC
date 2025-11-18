@@ -10,19 +10,21 @@ import { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const createUserSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email("Por favor ingresa un correo electrónico válido"),
   password: z
     .string()
     .min(8, "La contraseña debe tener al menos 8 caracteres")
-    .regex(/[a-z]/, "Debe contener al menos una letra minúscula")
-    .regex(/[A-Z]/, "Debe contener al menos una letra mayúscula")
-    .regex(/[0-9]/, "Debe contener al menos un número")
+    .regex(/[a-z]/, "La contraseña debe contener al menos una letra minúscula")
+    .regex(/[A-Z]/, "La contraseña debe contener al menos una letra mayúscula")
+    .regex(/[0-9]/, "La contraseña debe contener al menos un número")
     .regex(
       /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
-      "Debe contener al menos un carácter especial"
+      "La contraseña debe contener al menos un carácter especial"
     ),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().min(1, "Por favor ingresa el nombre del usuario"),
+  lastName: z
+    .string()
+    .min(1, "Por favor ingresa el apellido paterno del usuario"),
   secondLastName: z.string().optional(),
   noSecondLastName: z.boolean().optional(),
   phone: z.string().optional(),
@@ -37,8 +39,10 @@ const createUserSchema = z.object({
 });
 
 const updateUserSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().min(1, "Por favor ingresa el nombre del usuario"),
+  lastName: z
+    .string()
+    .min(1, "Por favor ingresa el apellido paterno del usuario"),
   secondLastName: z.string().optional(),
   noSecondLastName: z.boolean().optional(),
   phone: z.string().optional(),
@@ -57,11 +61,11 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para gestionar usuarios");
   }
 
   if (!Permissions.canCreateUser(session.user, data.role)) {
-    throw new Error("Cannot create user with this role");
+    throw new Error("No tienes permisos para crear un usuario con este rol");
   }
 
   const validatedData = createUserSchema.parse(data);
@@ -72,7 +76,9 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
   });
 
   if (existingUser) {
-    throw new Error("User with this email already exists");
+    throw new Error(
+      "Ya existe un usuario con este correo electrónico. Por favor usa otro correo"
+    );
   }
 
   // Hash password
@@ -161,7 +167,7 @@ export async function updateUser(
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para actualizar usuarios");
   }
 
   const validatedData = updateUserSchema.parse(data);
@@ -172,7 +178,9 @@ export async function updateUser(
   });
 
   if (!existingUser) {
-    throw new Error("User not found");
+    throw new Error(
+      "No se encontró el usuario. Es posible que haya sido eliminado"
+    );
   }
 
   // Determine clinic ID
@@ -226,7 +234,9 @@ export async function updateUser(
     });
     if (!existingDoctor) {
       if (!clinicId) {
-        throw new Error("Clinic is required to create doctor record");
+        throw new Error(
+          "Debes seleccionar una clínica para crear el perfil de doctor"
+        );
       }
       const acronym =
         validatedData.acronym ||
@@ -340,7 +350,9 @@ export async function updateUser(
     } else {
       // Doctor record doesn't exist, create it
       if (!clinicId) {
-        throw new Error("Clinic is required to create doctor record");
+        throw new Error(
+          "Debes seleccionar una clínica para crear el perfil de doctor"
+        );
       }
       const acronym =
         validatedData.acronym ||
@@ -391,7 +403,7 @@ export async function deleteUser(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para eliminar usuarios");
   }
 
   const user = await prisma.user.findUnique({ where: { id } });
@@ -434,7 +446,7 @@ export async function getUsers(params?: {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver usuarios");
   }
 
   const {
@@ -532,7 +544,7 @@ export async function resetUserPassword(userId: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageUsers(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para restablecer contraseñas");
   }
 
   // Get the target user
@@ -541,7 +553,9 @@ export async function resetUserPassword(userId: string) {
   });
 
   if (!targetUser) {
-    throw new Error("User not found");
+    throw new Error(
+      "No se encontró el usuario. Es posible que haya sido eliminado"
+    );
   }
 
   // Check if the current user can reset this user's password
@@ -555,7 +569,9 @@ export async function resetUserPassword(userId: string) {
       targetUser.clinicId === session.user.clinicId);
 
   if (!canReset) {
-    throw new Error("Cannot reset password for this user");
+    throw new Error(
+      "No tienes permisos para restablecer la contraseña de este usuario"
+    );
   }
 
   // Generate temporary password that meets security requirements

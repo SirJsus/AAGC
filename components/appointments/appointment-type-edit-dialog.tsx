@@ -69,13 +69,72 @@ export function AppointmentTypeEditDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error("El nombre es requerido");
+    // Validación de nombre
+    if (!formData.name?.trim()) {
+      toast.error("Por favor ingresa el nombre del tipo de cita");
       return;
     }
 
+    if (formData.name.trim().length < 3) {
+      toast.error("El nombre debe tener al menos 3 caracteres");
+      return;
+    }
+
+    if (formData.name.trim().length > 100) {
+      toast.error("El nombre es demasiado largo (máximo 100 caracteres)");
+      return;
+    }
+
+    // Validación de clínica
     if (!formData.clinicId) {
-      toast.error("La clínica es requerida");
+      toast.error("Por favor selecciona una clínica");
+      return;
+    }
+
+    // Validación de duración
+    const duration = parseInt(formData.durationMin);
+    if (isNaN(duration)) {
+      toast.error("Por favor ingresa una duración válida");
+      return;
+    }
+
+    if (duration < 5) {
+      toast.error("La duración mínima es de 5 minutos");
+      return;
+    }
+
+    if (duration > 480) {
+      toast.error("La duración máxima es de 480 minutos (8 horas)");
+      return;
+    }
+
+    // Validación de precio si se proporciona
+    if (formData.price) {
+      const price = parseFloat(formData.price);
+      if (isNaN(price)) {
+        toast.error("Por favor ingresa un precio válido");
+        return;
+      }
+
+      if (price < 0) {
+        toast.error("El precio no puede ser negativo");
+        return;
+      }
+
+      if (price > 999999.99) {
+        toast.error("El precio es demasiado alto (máximo 999,999.99)");
+        return;
+      }
+    }
+
+    // Validación de instrucciones previas si se proporcionan
+    if (
+      formData.preInstructions &&
+      formData.preInstructions.trim().length > 1000
+    ) {
+      toast.error(
+        "Las instrucciones previas son demasiado largas (máximo 1000 caracteres)"
+      );
       return;
     }
 
@@ -89,14 +148,14 @@ export function AppointmentTypeEditDialog({
         preInstructions: formData.preInstructions.trim() || undefined,
       });
 
-      toast.success("Tipo de cita actualizado exitosamente");
+      toast.success("Los datos del tipo de cita se guardaron correctamente");
       setOpen(false);
       onSuccess?.();
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Error al actualizar tipo de cita"
+          : "No se pudo actualizar el tipo de cita. Por favor, verifica los datos e intenta nuevamente."
       );
     } finally {
       setIsLoading(false);

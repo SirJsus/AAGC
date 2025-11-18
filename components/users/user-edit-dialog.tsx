@@ -119,21 +119,135 @@ export function UserEditDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validación adicional para doctores
-    if (formData.role === "DOCTOR") {
-      if (!formData.licenseNumber) {
+    // Validación de nombre
+    if (!formData.firstName?.trim()) {
+      toast.error("Por favor ingresa el nombre del usuario");
+      setActiveTab("general");
+      return;
+    }
+
+    if (formData.firstName.trim().length < 2) {
+      toast.error("El nombre debe tener al menos 2 caracteres");
+      setActiveTab("general");
+      return;
+    }
+
+    if (formData.firstName.trim().length > 100) {
+      toast.error("El nombre es demasiado largo (máximo 100 caracteres)");
+      setActiveTab("general");
+      return;
+    }
+
+    // Validación de apellido paterno
+    if (!formData.lastName?.trim()) {
+      toast.error("Por favor ingresa el apellido paterno del usuario");
+      setActiveTab("general");
+      return;
+    }
+
+    if (formData.lastName.trim().length < 2) {
+      toast.error("El apellido paterno debe tener al menos 2 caracteres");
+      setActiveTab("general");
+      return;
+    }
+
+    if (formData.lastName.trim().length > 100) {
+      toast.error(
+        "El apellido paterno es demasiado largo (máximo 100 caracteres)"
+      );
+      setActiveTab("general");
+      return;
+    }
+
+    // Validación de apellido materno
+    if (!formData.noSecondLastName && !formData.secondLastName?.trim()) {
+      toast.error(
+        "Por favor ingresa el apellido materno o marca la casilla si el usuario no tiene"
+      );
+      setActiveTab("general");
+      return;
+    }
+
+    if (formData.secondLastName && formData.secondLastName.trim().length < 2) {
+      toast.error("El apellido materno debe tener al menos 2 caracteres");
+      setActiveTab("general");
+      return;
+    }
+
+    if (
+      formData.secondLastName &&
+      formData.secondLastName.trim().length > 100
+    ) {
+      toast.error(
+        "El apellido materno es demasiado largo (máximo 100 caracteres)"
+      );
+      setActiveTab("general");
+      return;
+    }
+
+    // Validación de teléfono si se proporciona
+    if (formData.phone?.trim()) {
+      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+      if (!phoneRegex.test(formData.phone)) {
         toast.error(
-          "Por favor complete los campos requeridos en la pestaña 'Datos de Doctor'"
+          "El número de teléfono solo debe contener números y los caracteres: + - ( ) espacios"
         );
-        setActiveTab("doctor");
-        setLoading(false);
+        setActiveTab("general");
         return;
       }
-      if (currentUserRole === "ADMIN" && !formData.clinicId) {
-        toast.error("Debe seleccionar una clínica para el doctor");
-        setActiveTab("general");
-        setLoading(false);
+    }
+
+    // Validación de clínica para administradores
+    if (
+      currentUserRole === "ADMIN" &&
+      formData.role === "DOCTOR" &&
+      !formData.clinicId
+    ) {
+      toast.error("Por favor selecciona una clínica para el doctor");
+      setActiveTab("general");
+      return;
+    }
+
+    // Validación adicional para doctores
+    if (formData.role === "DOCTOR") {
+      if (!formData.licenseNumber?.trim()) {
+        toast.error(
+          "Por favor ingresa el número de cédula profesional del doctor"
+        );
+        setActiveTab("doctor");
         return;
+      }
+
+      if (formData.licenseNumber.trim().length > 50) {
+        toast.error(
+          "El número de cédula es demasiado largo (máximo 50 caracteres)"
+        );
+        setActiveTab("doctor");
+        return;
+      }
+
+      if (currentUserRole === "ADMIN" && !formData.clinicId) {
+        toast.error("Por favor selecciona una clínica para el doctor");
+        setActiveTab("general");
+        return;
+      }
+
+      // Validación de acrónimo personalizado si se proporciona
+      if (formData.acronym?.trim()) {
+        if (formData.acronym.length !== 3) {
+          toast.error("El acrónimo debe tener exactamente 3 caracteres");
+          setActiveTab("doctor");
+          return;
+        }
+
+        const acronymRegex = /^[A-Z]{3}$/;
+        if (!acronymRegex.test(formData.acronym)) {
+          toast.error(
+            "El acrónimo debe contener solo 3 letras mayúsculas (A-Z)"
+          );
+          setActiveTab("doctor");
+          return;
+        }
       }
     }
 
@@ -152,11 +266,14 @@ export function UserEditDialog({
           formData.role === "DOCTOR" ? formData.primarySpecialtyId : undefined,
       });
 
-      toast.success("Usuario actualizado exitosamente");
+      toast.success("Los datos del usuario se guardaron correctamente");
       setOpen(false);
       router.refresh();
     } catch (error: any) {
-      toast.error(error.message || "Error al actualizar usuario");
+      toast.error(
+        error.message ||
+          "No se pudo actualizar el usuario. Por favor, verifica los datos e intenta nuevamente."
+      );
     } finally {
       setLoading(false);
     }

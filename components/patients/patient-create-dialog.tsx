@@ -130,34 +130,173 @@ export function PatientCreateDialog({
       const data = await getDoctors();
       setDoctors(data.doctors);
     } catch (error) {
-      toast.error("Error al cargar doctores");
+      toast.error(
+        "No se pudo cargar la lista de doctores. Por favor, intenta nuevamente."
+      );
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.firstName || !formData.lastName || !formData.phone) {
+    // Validación de campos requeridos básicos
+    if (!formData.firstName?.trim()) {
+      toast.error("Por favor ingresa el nombre del paciente");
+      return;
+    }
+
+    if (!formData.lastName?.trim()) {
+      toast.error("Por favor ingresa el apellido paterno del paciente");
+      return;
+    }
+
+    if (!formData.noSecondLastName && !formData.secondLastName?.trim()) {
       toast.error(
-        "Por favor completa los campos requeridos (Nombre, Apellido Paterno, Teléfono)"
+        "Por favor ingresa el apellido materno o marca la casilla si el paciente no tiene"
       );
       return;
     }
 
-    if (!formData.noSecondLastName && !formData.secondLastName.trim()) {
+    if (!formData.phone?.trim()) {
+      toast.error("Por favor ingresa el número de teléfono del paciente");
+      return;
+    }
+
+    // Validación de formato de teléfono (solo números y caracteres permitidos)
+    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+    if (!phoneRegex.test(formData.phone)) {
       toast.error(
-        "Por favor completa el Apellido Materno o marca la casilla si no tiene"
+        "El número de teléfono solo debe contener números y los caracteres: + - ( ) espacios"
+      );
+      return;
+    }
+
+    // Validación de email si se proporciona
+    if (formData.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        toast.error("Por favor ingresa un correo electrónico válido");
+        return;
+      }
+    }
+
+    // Validación de fecha de nacimiento
+    if (formData.birthDate) {
+      const birthDate = new Date(formData.birthDate);
+      const today = new Date();
+
+      if (birthDate > today) {
+        toast.error(
+          "La fecha de nacimiento no puede ser posterior a la fecha actual"
+        );
+        return;
+      }
+
+      const age = today.getFullYear() - birthDate.getFullYear();
+      if (age > 150) {
+        toast.error(
+          "La fecha de nacimiento ingresada no parece ser válida. Por favor verifica"
+        );
+        return;
+      }
+    }
+
+    // Validación de acrónimo personalizado
+    if (
+      doctorAcronymType === "custom" &&
+      formData.customDoctorAcronym.length !== 3
+    ) {
+      toast.error("El acrónimo personalizado debe tener exactamente 3 letras");
+      return;
+    }
+
+    // Validación de caracteres del acrónimo
+    if (doctorAcronymType === "custom" && formData.customDoctorAcronym) {
+      const acronymRegex = /^[A-Z]{3}$/;
+      if (!acronymRegex.test(formData.customDoctorAcronym)) {
+        toast.error("El acrónimo debe contener solo 3 letras mayúsculas (A-Z)");
+        return;
+      }
+    }
+
+    // Validación de doctor externo si está seleccionado
+    if (doctorType === "external") {
+      if (!formData.primaryDoctorFirstName?.trim()) {
+        toast.error("Por favor ingresa el nombre del doctor externo");
+        return;
+      }
+      if (!formData.primaryDoctorLastName?.trim()) {
+        toast.error("Por favor ingresa el apellido paterno del doctor externo");
+        return;
+      }
+      if (
+        !formData.primaryDoctorNoSecondLastName &&
+        !formData.primaryDoctorSecondLastName?.trim()
+      ) {
+        toast.error(
+          "Por favor ingresa el apellido materno del doctor externo o marca la casilla si no tiene"
+        );
+        return;
+      }
+    }
+
+    // Validación de doctor interno si está seleccionado
+    if (
+      doctorType === "internal" &&
+      doctorAcronymType === "internal" &&
+      (!formData.doctorId || formData.doctorId === "none")
+    ) {
+      toast.error("Por favor selecciona un doctor de la clínica");
+      return;
+    }
+
+    // Validación de teléfono de contacto de emergencia si se proporciona
+    if (formData.emergencyContactPhone?.trim()) {
+      if (!phoneRegex.test(formData.emergencyContactPhone)) {
+        toast.error(
+          "El teléfono de emergencia solo debe contener números y los caracteres: + - ( ) espacios"
+        );
+        return;
+      }
+    }
+
+    // Validación de teléfono del doctor externo si se proporciona
+    if (formData.primaryDoctorPhone?.trim()) {
+      if (!phoneRegex.test(formData.primaryDoctorPhone)) {
+        toast.error(
+          "El teléfono del doctor solo debe contener números y los caracteres: + - ( ) espacios"
+        );
+        return;
+      }
+    }
+
+    // Validación de longitud de campos
+    if (formData.firstName.trim().length > 100) {
+      toast.error(
+        "El nombre del paciente es demasiado largo (máximo 100 caracteres)"
+      );
+      return;
+    }
+
+    if (formData.lastName.trim().length > 100) {
+      toast.error(
+        "El apellido paterno es demasiado largo (máximo 100 caracteres)"
       );
       return;
     }
 
     if (
-      doctorAcronymType === "custom" &&
-      formData.customDoctorAcronym.length !== 3
+      formData.secondLastName &&
+      formData.secondLastName.trim().length > 100
     ) {
       toast.error(
-        "El acrónimo personalizado del doctor debe tener exactamente 3 letras"
+        "El apellido materno es demasiado largo (máximo 100 caracteres)"
       );
+      return;
+    }
+
+    if (formData.notes && formData.notes.trim().length > 1000) {
+      toast.error("Las notas son demasiado largas (máximo 1000 caracteres)");
       return;
     }
 
@@ -210,12 +349,14 @@ export function PatientCreateDialog({
             ? formData.customDoctorAcronym
             : undefined,
       });
-      toast.success("Paciente creado exitosamente");
+      toast.success("El paciente se creó correctamente");
       handleClose();
       onSuccess?.();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Error al crear paciente"
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear el paciente. Por favor, verifica los datos e intenta nuevamente."
       );
     } finally {
       setIsLoading(false);

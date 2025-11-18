@@ -8,21 +8,33 @@ import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 
 const createClinicSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Por favor ingresa el nombre de la clínica"),
   address: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z
+    .string()
+    .email("Por favor ingresa un correo electrónico válido")
+    .optional()
+    .or(z.literal("")),
   timezone: z.string().default("America/Mexico_City"),
   locale: z.string().default("es-MX"),
-  defaultSlotMinutes: z.number().min(5).max(120).default(30),
-  clinicAcronym: z.string().min(1).max(5).default(""),
+  defaultSlotMinutes: z
+    .number()
+    .min(5, "Los minutos por turno deben ser al menos 5")
+    .max(120, "Los minutos por turno no pueden ser más de 120")
+    .default(30),
+  clinicAcronym: z
+    .string()
+    .min(1, "Por favor ingresa el acrónimo de la clínica")
+    .max(5, "El acrónimo debe tener máximo 5 caracteres")
+    .default(""),
 });
 
 export async function createClinic(data: z.infer<typeof createClinicSchema>) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canCreateClinics(session.user)) {
-    throw new Error("Only ADMIN can create clinics");
+    throw new Error("Solo los administradores pueden crear clínicas");
   }
 
   const validatedData = createClinicSchema.parse(data);
@@ -51,12 +63,12 @@ export async function updateClinic(
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageClinics(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para actualizar clínicas");
   }
 
   // CLINIC_ADMIN can only edit their own clinic
   if (!Permissions.canAccessClinic(session.user, id)) {
-    throw new Error("You can only edit your own clinic");
+    throw new Error("Solo puedes editar tu propia clínica");
   }
 
   const validatedData = createClinicSchema.parse(data);
@@ -83,12 +95,12 @@ export async function deleteClinic(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageClinics(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para eliminar clínicas");
   }
 
   // CLINIC_ADMIN cannot delete clinics
   if (session.user.role !== "ADMIN") {
-    throw new Error("Only ADMIN can delete clinics");
+    throw new Error("Solo los administradores pueden eliminar clínicas");
   }
 
   await prisma.clinic.update({
@@ -106,12 +118,14 @@ export async function setClinicActive(id: string, isActive: boolean) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageClinics(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para cambiar el estado de clínicas");
   }
 
   // CLINIC_ADMIN cannot change clinic status
   if (session.user.role !== "ADMIN") {
-    throw new Error("Only ADMIN can change clinic status");
+    throw new Error(
+      "Solo los administradores pueden cambiar el estado de una clínica"
+    );
   }
 
   const data: any = { isActive };
@@ -139,7 +153,7 @@ export async function getClinics(params?: {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para realizar esta acción");
   }
 
   // Allow users who can manage clinics OR manage appointments to view clinics
@@ -147,7 +161,7 @@ export async function getClinics(params?: {
     !Permissions.canManageClinics(session.user) &&
     !Permissions.canManageAppointments(session.user)
   ) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver clínicas");
   }
 
   const { search = "", status = "all", page = 1, pageSize = 20 } = params || {};

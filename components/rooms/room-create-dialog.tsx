@@ -69,15 +69,53 @@ export function RoomCreateDialog({
         setFormData((prev) => ({ ...prev, clinicId: data.clinics[0].id }));
       }
     } catch (error) {
-      toast.error("Error al cargar clínicas");
+      toast.error(
+        "No se pudo cargar la lista de clínicas. Por favor, intenta nuevamente."
+      );
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.clinicId) {
-      toast.error("Por favor completa los campos requeridos");
+    // Validación de nombre del consultorio
+    if (!formData.name?.trim()) {
+      toast.error("Por favor ingresa el nombre del consultorio");
+      return;
+    }
+
+    if (formData.name.trim().length < 2) {
+      toast.error("El nombre del consultorio debe tener al menos 2 caracteres");
+      return;
+    }
+
+    if (formData.name.trim().length > 100) {
+      toast.error(
+        "El nombre del consultorio es demasiado largo (máximo 100 caracteres)"
+      );
+      return;
+    }
+
+    // Validación de clínica
+    if (!formData.clinicId) {
+      toast.error("Por favor selecciona una clínica");
+      return;
+    }
+
+    // Validación de ubicación si se proporciona
+    if (formData.location && formData.location.trim().length > 200) {
+      toast.error("La ubicación es demasiado larga (máximo 200 caracteres)");
+      return;
+    }
+
+    // Validación de capacidad
+    if (formData.capacity < 1) {
+      toast.error("La capacidad debe ser al menos 1 persona");
+      return;
+    }
+
+    if (formData.capacity > 100) {
+      toast.error("La capacidad no puede ser mayor a 100 personas");
       return;
     }
 
@@ -90,12 +128,14 @@ export function RoomCreateDialog({
         capacity: formData.capacity,
         isActive: true,
       });
-      toast.success("Consultorio creado exitosamente");
+      toast.success("El consultorio se creó correctamente");
       handleClose();
       onSuccess?.();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Error al crear consultorio"
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear el consultorio. Por favor, verifica los datos e intenta nuevamente."
       );
     } finally {
       setIsLoading(false);

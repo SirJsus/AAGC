@@ -1,41 +1,54 @@
+"use client";
 
-"use client"
-
-import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus } from "lucide-react"
-import { toast } from "sonner"
-import { createAppointmentType } from "@/lib/actions/appointment-types"
-import { Clinic } from "@prisma/client"
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { createAppointmentType } from "@/lib/actions/appointment-types";
+import { Clinic } from "@prisma/client";
 
 interface AppointmentTypeCreateDialogProps {
-  clinics: Clinic[]
-  userClinicId?: string
-  userRole?: string
-  onSuccess?: () => void
+  clinics: Clinic[];
+  userClinicId?: string;
+  userRole?: string;
+  onSuccess?: () => void;
 }
 
-export function AppointmentTypeCreateDialog({ 
-  clinics, 
-  userClinicId, 
+export function AppointmentTypeCreateDialog({
+  clinics,
+  userClinicId,
   userRole,
-  onSuccess 
+  onSuccess,
 }: AppointmentTypeCreateDialogProps) {
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     clinicId: userClinicId || "",
     durationMin: "30",
     price: "",
     preInstructions: "",
-  })
+  });
 
   // Reset form when dialog closes
   useEffect(() => {
@@ -47,25 +60,84 @@ export function AppointmentTypeCreateDialog({
           durationMin: "30",
           price: "",
           preInstructions: "",
-        })
-      }, 200)
+        });
+      }, 200);
     }
-  }, [open, userClinicId])
+  }, [open, userClinicId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim()) {
-      toast.error("El nombre es requerido")
-      return
+    e.preventDefault();
+
+    // Validación de nombre
+    if (!formData.name?.trim()) {
+      toast.error("Por favor ingresa el nombre del tipo de cita");
+      return;
     }
 
+    if (formData.name.trim().length < 3) {
+      toast.error("El nombre debe tener al menos 3 caracteres");
+      return;
+    }
+
+    if (formData.name.trim().length > 100) {
+      toast.error("El nombre es demasiado largo (máximo 100 caracteres)");
+      return;
+    }
+
+    // Validación de clínica
     if (!formData.clinicId) {
-      toast.error("La clínica es requerida")
-      return
+      toast.error("Por favor selecciona una clínica");
+      return;
     }
 
-    setIsLoading(true)
+    // Validación de duración
+    const duration = parseInt(formData.durationMin);
+    if (isNaN(duration)) {
+      toast.error("Por favor ingresa una duración válida");
+      return;
+    }
+
+    if (duration < 5) {
+      toast.error("La duración mínima es de 5 minutos");
+      return;
+    }
+
+    if (duration > 480) {
+      toast.error("La duración máxima es de 480 minutos (8 horas)");
+      return;
+    }
+
+    // Validación de precio si se proporciona
+    if (formData.price) {
+      const price = parseFloat(formData.price);
+      if (isNaN(price)) {
+        toast.error("Por favor ingresa un precio válido");
+        return;
+      }
+
+      if (price < 0) {
+        toast.error("El precio no puede ser negativo");
+        return;
+      }
+
+      if (price > 999999.99) {
+        toast.error("El precio es demasiado alto (máximo 999,999.99)");
+        return;
+      }
+    }
+
+    // Validación de instrucciones previas si se proporcionan
+    if (
+      formData.preInstructions &&
+      formData.preInstructions.trim().length > 1000
+    ) {
+      toast.error(
+        "Las instrucciones previas son demasiado largas (máximo 1000 caracteres)"
+      );
+      return;
+    }
+
+    setIsLoading(true);
     try {
       await createAppointmentType({
         name: formData.name.trim(),
@@ -73,17 +145,21 @@ export function AppointmentTypeCreateDialog({
         durationMin: parseInt(formData.durationMin) || 30,
         price: formData.price ? parseFloat(formData.price) : 0,
         preInstructions: formData.preInstructions.trim() || undefined,
-      })
+      });
 
-      toast.success("Tipo de cita creado exitosamente")
-      setOpen(false)
-      onSuccess?.()
+      toast.success("El tipo de cita se creó correctamente");
+      setOpen(false);
+      onSuccess?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al crear tipo de cita")
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear el tipo de cita. Por favor, verifica los datos e intenta nuevamente."
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -110,7 +186,9 @@ export function AppointmentTypeCreateDialog({
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="Ej: Consulta General, Seguimiento, Revisión..."
                 required
               />
@@ -121,9 +199,11 @@ export function AppointmentTypeCreateDialog({
                 <Label htmlFor="clinic">
                   Clínica <span className="text-red-500">*</span>
                 </Label>
-                <Select 
-                  value={formData.clinicId} 
-                  onValueChange={(value) => setFormData({ ...formData, clinicId: value })}
+                <Select
+                  value={formData.clinicId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, clinicId: value })
+                  }
                   required
                 >
                   <SelectTrigger>
@@ -151,7 +231,9 @@ export function AppointmentTypeCreateDialog({
                   min="5"
                   max="480"
                   value={formData.durationMin}
-                  onChange={(e) => setFormData({ ...formData, durationMin: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, durationMin: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -164,7 +246,9 @@ export function AppointmentTypeCreateDialog({
                   step="0.01"
                   min="0"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price: e.target.value })
+                  }
                   placeholder="0.00"
                 />
               </div>
@@ -175,7 +259,9 @@ export function AppointmentTypeCreateDialog({
               <Textarea
                 id="instructions"
                 value={formData.preInstructions}
-                onChange={(e) => setFormData({ ...formData, preInstructions: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, preInstructions: e.target.value })
+                }
                 placeholder="Instrucciones o recomendaciones antes de la cita..."
                 rows={3}
               />
@@ -183,7 +269,12 @@ export function AppointmentTypeCreateDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isLoading}
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading}>
@@ -193,5 +284,5 @@ export function AppointmentTypeCreateDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

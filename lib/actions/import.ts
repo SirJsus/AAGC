@@ -68,14 +68,16 @@ export async function createImportJob(data: CreateImportJobInput) {
   // Si no se proporciona clinicId, usar la del usuario (si no es admin)
   if (!clinicId) {
     if (session.user.role === Role.ADMIN) {
-      throw new Error("Los administradores deben especificar una clínica");
+      throw new Error(
+        "Los administradores deben especificar una clínica para la importación"
+      );
     }
     clinicId = session.user.clinicId;
   }
 
   // Si es admin, validar que tenga acceso a la clínica (opcional, por seguridad)
   if (session.user.role !== Role.ADMIN && clinicId !== session.user.clinicId) {
-    throw new Error("No tienes permiso para importar datos a esta clínica");
+    throw new Error("No tienes permisos para importar datos a esta clínica");
   }
 
   // Crear el job inicial
@@ -117,7 +119,7 @@ async function processImportJob(
     });
 
     if (!job) {
-      throw new Error("Job not found");
+      throw new Error("No se encontró el trabajo de importación");
     }
 
     // Parsear el archivo (CSV o JSON)
@@ -142,7 +144,9 @@ async function processImportJob(
         skip_records_with_error: false,
       });
     } else {
-      throw new Error("Formato de archivo no soportado");
+      throw new Error(
+        "Formato de archivo no soportado. Por favor usa archivos CSV o JSON"
+      );
     }
 
     const totalRows = records.length;
@@ -214,12 +218,12 @@ async function importPatient(
   userId: string
 ) {
   if (!clinicId) {
-    throw new Error("Clinic ID is required for patient import");
+    throw new Error("Se requiere el ID de la clínica para importar pacientes");
   }
 
   // Validar campos requeridos BÁSICOS
   if (!data.firstName || !data.lastName) {
-    throw new Error("Missing required fields: firstName, lastName");
+    throw new Error("Faltan campos requeridos: nombre y apellido paterno");
   }
 
   // Validar campos del customId (solo 3 requeridos)
@@ -229,7 +233,7 @@ async function importPatient(
     data.customIdNumber === undefined
   ) {
     throw new Error(
-      "Missing required ID fields: customIdClinic, customIdDoctor, customIdNumber"
+      "Faltan campos requeridos para el ID: clínica, doctor y número"
     );
   }
 
@@ -256,7 +260,7 @@ async function importPatient(
   });
 
   if (existing) {
-    throw new Error(`Patient with customId ${customId} already exists`);
+    throw new Error(`Ya existe un paciente con el ID ${customId}`);
   }
 
   // Generar teléfono temporal si no se proporciona
@@ -297,19 +301,19 @@ async function importDoctor(
   userId: string
 ) {
   if (!clinicId) {
-    throw new Error("Clinic ID is required for doctor import");
+    throw new Error("Se requiere el ID de la clínica para importar doctores");
   }
 
   // Validar campos requeridos
   if (!data.firstName || !data.lastName) {
-    throw new Error("Missing required fields: firstName, lastName");
+    throw new Error("Faltan campos requeridos: nombre y apellido paterno");
   }
 
   // Normalizar licenseNumber desde posibles columnas (license, licenseNumber, doctorLicense)
   const licenseNumber =
     data.license || data.licenseNumber || data.doctorLicense;
   if (!licenseNumber) {
-    throw new Error("Missing required field: licenseNumber");
+    throw new Error("Falta el campo requerido: número de licencia del doctor");
   }
 
   // Verificar que no exista un usuario con esa licenseNumber
@@ -318,7 +322,7 @@ async function importDoctor(
   });
 
   if (existingUser) {
-    throw new Error(`Doctor with license ${licenseNumber} already exists`);
+    throw new Error(`Ya existe un doctor con la licencia ${licenseNumber}`);
   }
 
   // Preparar email (si no se proporciona, generamos uno temporal único)
@@ -414,7 +418,7 @@ async function importAppointment(
   userId: string
 ) {
   if (!clinicId) {
-    throw new Error("Clinic ID is required for appointment import");
+    throw new Error("Se requiere el ID de la clínica para importar citas");
   }
 
   // Validar campos requeridos
@@ -426,7 +430,7 @@ async function importAppointment(
     !data.endTime
   ) {
     throw new Error(
-      "Missing required fields: patientCustomId, doctorLicense, date, startTime, endTime"
+      "Faltan campos requeridos: ID del paciente, licencia del doctor, fecha, hora de inicio y hora de fin"
     );
   }
 
@@ -440,7 +444,9 @@ async function importAppointment(
   });
 
   if (!patient) {
-    throw new Error(`Patient with customId ${data.patientCustomId} not found`);
+    throw new Error(
+      `No se encontró el paciente con ID ${data.patientCustomId}`
+    );
   }
 
   // Buscar doctor por el licenseNumber del usuario asociado
@@ -456,7 +462,9 @@ async function importAppointment(
   });
 
   if (!doctor) {
-    throw new Error(`Doctor with license ${data.doctorLicense} not found`);
+    throw new Error(
+      `No se encontró el doctor con licencia ${data.doctorLicense}`
+    );
   }
 
   // Buscar appointmentType si se proporciona
@@ -500,7 +508,7 @@ async function importAppointment(
 
   if (doctorConflict) {
     throw new Error(
-      `Doctor has appointment conflict at ${data.date} ${data.startTime}`
+      `El doctor ya tiene una cita en conflicto el ${data.date} a las ${data.startTime}`
     );
   }
 
@@ -520,7 +528,7 @@ async function importAppointment(
 
     if (roomConflict) {
       throw new Error(
-        `Room has appointment conflict at ${data.date} ${data.startTime}`
+        `El consultorio ya tiene una cita en conflicto el ${data.date} a las ${data.startTime}`
       );
     }
   }
