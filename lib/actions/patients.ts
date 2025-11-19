@@ -47,6 +47,17 @@ const createPatientSchema = z.object({
   notes: z.string().optional(),
   doctorId: z.string().optional(),
   customDoctorAcronym: z.string().length(3).optional(), // Custom 3-letter acronym for doctor
+  // Billing fields
+  billingIsSameAsPatient: z.boolean().optional(),
+  billingName: z.string().optional(),
+  billingRFC: z.string().optional(),
+  billingTaxRegime: z.string().optional(),
+  billingPostalCode: z.string().optional(),
+  billingEmail: z
+    .string()
+    .email("Por favor ingresa un correo electrónico válido para facturación")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function createPatient(data: z.infer<typeof createPatientSchema>) {
@@ -194,6 +205,13 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
       notes: validatedData.notes || null,
       doctorId: validatedData.doctorId || null,
       pendingCompletion: true, // Mark as temporary/pending completion
+      // Billing fields
+      billingIsSameAsPatient: validatedData.billingIsSameAsPatient ?? true,
+      billingName: validatedData.billingName || null,
+      billingRFC: validatedData.billingRFC || null,
+      billingTaxRegime: validatedData.billingTaxRegime || null,
+      billingPostalCode: validatedData.billingPostalCode || null,
+      billingEmail: validatedData.billingEmail || null,
     },
     include: {
       clinic: true,
@@ -369,6 +387,13 @@ export async function updatePatient(
       doctorId: validatedData.doctorId || null,
       ...(clinicId && { clinicId }), // Update clinic only if doctor is selected
       pendingCompletion: !hasCompleteData, // Mark as completed when all required data is present
+      // Billing fields
+      billingIsSameAsPatient: validatedData.billingIsSameAsPatient ?? true,
+      billingName: validatedData.billingName || null,
+      billingRFC: validatedData.billingRFC || null,
+      billingTaxRegime: validatedData.billingTaxRegime || null,
+      billingPostalCode: validatedData.billingPostalCode || null,
+      billingEmail: validatedData.billingEmail || null,
     },
     include: {
       clinic: true,

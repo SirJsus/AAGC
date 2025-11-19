@@ -96,6 +96,13 @@ export function PatientEditDialog({
     notes: patient.notes || "",
     doctorId: patient.doctorId || "",
     customDoctorAcronym: patient.customDoctorAcronym || "",
+    // Billing fields
+    billingIsSameAsPatient: patient.billingIsSameAsPatient ?? true,
+    billingName: patient.billingName || "",
+    billingRFC: patient.billingRFC || "",
+    billingTaxRegime: patient.billingTaxRegime || "",
+    billingPostalCode: patient.billingPostalCode || "",
+    billingEmail: patient.billingEmail || "",
   });
 
   // Edad calculada a partir de la fecha de nacimiento (formData.birthDate)
@@ -272,6 +279,63 @@ export function PatientEditDialog({
       return;
     }
 
+    // Validación de campos de facturación
+    if (!formData.billingIsSameAsPatient) {
+      if (!formData.billingName?.trim()) {
+        toast.error(
+          "Por favor ingresa el nombre o razón social para facturación"
+        );
+        return;
+      }
+      if (formData.billingName.trim().length > 200) {
+        toast.error(
+          "El nombre de facturación es demasiado largo (máximo 200 caracteres)"
+        );
+        return;
+      }
+      if (!formData.billingEmail?.trim()) {
+        toast.error("Por favor ingresa el correo electrónico para facturación");
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.billingEmail)) {
+        toast.error(
+          "Por favor ingresa un correo electrónico válido para facturación"
+        );
+        return;
+      }
+    }
+
+    if (formData.billingRFC?.trim()) {
+      // Validación de RFC: 12 o 13 caracteres alfanuméricos
+      const rfcRegex = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+      if (!rfcRegex.test(formData.billingRFC.toUpperCase())) {
+        toast.error(
+          "El RFC no tiene un formato válido (debe ser de 12 o 13 caracteres)"
+        );
+        return;
+      }
+    }
+
+    if (formData.billingPostalCode?.trim()) {
+      // Validación de código postal: 5 dígitos
+      const postalCodeRegex = /^\d{5}$/;
+      if (!postalCodeRegex.test(formData.billingPostalCode)) {
+        toast.error("El código postal debe ser de 5 dígitos");
+        return;
+      }
+    }
+
+    if (
+      formData.billingTaxRegime &&
+      formData.billingTaxRegime.trim().length > 200
+    ) {
+      toast.error(
+        "El régimen fiscal es demasiado largo (máximo 200 caracteres)"
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       await updatePatient(patient.id, {
@@ -317,6 +381,17 @@ export function PatientEditDialog({
             ? formData.doctorId
             : undefined,
         customDoctorAcronym: formData.customDoctorAcronym || undefined,
+        // Billing fields
+        billingIsSameAsPatient: formData.billingIsSameAsPatient,
+        billingName: formData.billingIsSameAsPatient
+          ? undefined
+          : formData.billingName || undefined,
+        billingRFC: formData.billingRFC || undefined,
+        billingTaxRegime: formData.billingTaxRegime || undefined,
+        billingPostalCode: formData.billingPostalCode || undefined,
+        billingEmail: formData.billingIsSameAsPatient
+          ? undefined
+          : formData.billingEmail || undefined,
       });
       toast.success("Los datos del paciente se guardaron correctamente");
       setOpen(false);
@@ -385,10 +460,11 @@ export function PatientEditDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="personal" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsList className="grid w-full grid-cols-5 mb-4">
               <TabsTrigger value="personal">Datos Personales</TabsTrigger>
               <TabsTrigger value="doctor">Doctor</TabsTrigger>
               <TabsTrigger value="emergency">Emergencia</TabsTrigger>
+              <TabsTrigger value="billing">Facturación</TabsTrigger>
               <TabsTrigger value="notes">Notas</TabsTrigger>
             </TabsList>
             <TabsContent value="personal" className="space-y-4">
@@ -830,6 +906,144 @@ export function PatientEditDialog({
                     disabled={readOnly}
                   />
                 </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="billing" className="space-y-4">
+              <Separator className="my-4" />
+              <h3 className="text-lg font-semibold">Datos de Facturación</h3>
+              <p className="text-sm text-muted-foreground">
+                Información necesaria para la emisión de facturas
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="billingIsSameAsPatient"
+                    checked={formData.billingIsSameAsPatient}
+                    onCheckedChange={(checked) => {
+                      if (!readOnly) {
+                        setFormData({
+                          ...formData,
+                          billingIsSameAsPatient: checked === true,
+                          billingName:
+                            checked === true ? "" : formData.billingName,
+                          billingEmail:
+                            checked === true ? "" : formData.billingEmail,
+                        });
+                      }
+                    }}
+                    disabled={readOnly}
+                  />
+                  <Label
+                    htmlFor="billingIsSameAsPatient"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    La factura será a nombre del paciente
+                  </Label>
+                </div>
+                {!formData.billingIsSameAsPatient && (
+                  <div className="space-y-2">
+                    <Label htmlFor="billingName">
+                      Nombre o Razón Social
+                      <span className="text-red-500 ml-1">*</span>
+                    </Label>
+                    <Input
+                      id="billingName"
+                      value={formData.billingName}
+                      onChange={(e) =>
+                        !readOnly &&
+                        setFormData({
+                          ...formData,
+                          billingName: e.target.value,
+                        })
+                      }
+                      placeholder="Nombre completo o razón social"
+                      disabled={readOnly}
+                    />
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="billingRFC">
+                      RFC
+                      <span className="text-red-500 ml-1">*</span>
+                    </Label>
+                    <Input
+                      id="billingRFC"
+                      value={formData.billingRFC}
+                      onChange={(e) =>
+                        !readOnly &&
+                        setFormData({
+                          ...formData,
+                          billingRFC: e.target.value.toUpperCase(),
+                        })
+                      }
+                      placeholder="XAXX010101000"
+                      maxLength={13}
+                      disabled={readOnly}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="billingPostalCode">
+                      Código Postal
+                      <span className="text-red-500 ml-1">*</span>
+                    </Label>
+                    <Input
+                      id="billingPostalCode"
+                      value={formData.billingPostalCode}
+                      onChange={(e) =>
+                        !readOnly &&
+                        setFormData({
+                          ...formData,
+                          billingPostalCode: e.target.value,
+                        })
+                      }
+                      placeholder="12345"
+                      maxLength={5}
+                      disabled={readOnly}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="billingTaxRegime">
+                    Régimen Fiscal
+                    <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <Input
+                    id="billingTaxRegime"
+                    value={formData.billingTaxRegime}
+                    onChange={(e) =>
+                      !readOnly &&
+                      setFormData({
+                        ...formData,
+                        billingTaxRegime: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: 612 - Personas Físicas con Actividades Empresariales"
+                    disabled={readOnly}
+                  />
+                </div>
+                {!formData.billingIsSameAsPatient && (
+                  <div className="space-y-2">
+                    <Label htmlFor="billingEmail">
+                      Correo Electrónico para Factura
+                      <span className="text-red-500 ml-1">*</span>
+                    </Label>
+                    <Input
+                      id="billingEmail"
+                      type="email"
+                      value={formData.billingEmail}
+                      onChange={(e) =>
+                        !readOnly &&
+                        setFormData({
+                          ...formData,
+                          billingEmail: e.target.value,
+                        })
+                      }
+                      placeholder="correo@ejemplo.com"
+                      disabled={readOnly}
+                    />
+                  </div>
+                )}
               </div>
             </TabsContent>
             <TabsContent value="notes" className="space-y-4">

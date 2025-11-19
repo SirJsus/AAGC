@@ -559,7 +559,8 @@ export async function deleteAppointment(id: string) {
 export async function getAppointments(
   date?: string,
   doctorId?: string,
-  patientId?: string
+  patientId?: string,
+  clinicId?: string
 ) {
   const session = await getServerSession(authOptions);
 
@@ -586,6 +587,11 @@ export async function getAppointments(
     }
   } else if (session.user.role !== "ADMIN") {
     whereClause.clinicId = session.user.clinicId;
+  }
+
+  // Clinic filter (only for ADMIN)
+  if (session.user.role === "ADMIN" && clinicId && clinicId !== "all") {
+    whereClause.clinicId = clinicId;
   }
 
   if (date) {

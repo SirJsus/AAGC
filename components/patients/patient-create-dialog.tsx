@@ -81,6 +81,13 @@ export function PatientCreateDialog({
     notes: "",
     doctorId: "",
     customDoctorAcronym: "",
+    // Billing fields
+    billingIsSameAsPatient: true,
+    billingName: "",
+    billingRFC: "",
+    billingTaxRegime: "",
+    billingPostalCode: "",
+    billingEmail: "",
   });
 
   useEffect(() => {
@@ -300,6 +307,63 @@ export function PatientCreateDialog({
       return;
     }
 
+    // Validación de campos de facturación
+    if (!formData.billingIsSameAsPatient) {
+      if (!formData.billingName?.trim()) {
+        toast.error(
+          "Por favor ingresa el nombre o razón social para facturación"
+        );
+        return;
+      }
+      if (formData.billingName.trim().length > 200) {
+        toast.error(
+          "El nombre de facturación es demasiado largo (máximo 200 caracteres)"
+        );
+        return;
+      }
+      if (!formData.billingEmail?.trim()) {
+        toast.error("Por favor ingresa el correo electrónico para facturación");
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.billingEmail)) {
+        toast.error(
+          "Por favor ingresa un correo electrónico válido para facturación"
+        );
+        return;
+      }
+    }
+
+    if (formData.billingRFC?.trim()) {
+      // Validación de RFC: 12 o 13 caracteres alfanuméricos
+      const rfcRegex = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+      if (!rfcRegex.test(formData.billingRFC.toUpperCase())) {
+        toast.error(
+          "El RFC no tiene un formato válido (debe ser de 12 o 13 caracteres)"
+        );
+        return;
+      }
+    }
+
+    if (formData.billingPostalCode?.trim()) {
+      // Validación de código postal: 5 dígitos
+      const postalCodeRegex = /^\d{5}$/;
+      if (!postalCodeRegex.test(formData.billingPostalCode)) {
+        toast.error("El código postal debe ser de 5 dígitos");
+        return;
+      }
+    }
+
+    if (
+      formData.billingTaxRegime &&
+      formData.billingTaxRegime.trim().length > 200
+    ) {
+      toast.error(
+        "El régimen fiscal es demasiado largo (máximo 200 caracteres)"
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       await createPatient({
@@ -348,6 +412,17 @@ export function PatientCreateDialog({
           doctorAcronymType === "custom" && formData.customDoctorAcronym
             ? formData.customDoctorAcronym
             : undefined,
+        // Billing fields
+        billingIsSameAsPatient: formData.billingIsSameAsPatient,
+        billingName: formData.billingIsSameAsPatient
+          ? undefined
+          : formData.billingName || undefined,
+        billingRFC: formData.billingRFC || undefined,
+        billingTaxRegime: formData.billingTaxRegime || undefined,
+        billingPostalCode: formData.billingPostalCode || undefined,
+        billingEmail: formData.billingIsSameAsPatient
+          ? undefined
+          : formData.billingEmail || undefined,
       });
       toast.success("El paciente se creó correctamente");
       handleClose();
@@ -389,6 +464,13 @@ export function PatientCreateDialog({
         notes: "",
         doctorId: "",
         customDoctorAcronym: "",
+        // Billing fields
+        billingIsSameAsPatient: true,
+        billingName: "",
+        billingRFC: "",
+        billingTaxRegime: "",
+        billingPostalCode: "",
+        billingEmail: "",
       });
       setDoctorType("none");
       setDoctorAcronymType("internal");
@@ -435,7 +517,7 @@ export function PatientCreateDialog({
           <TabsContent value="manual" className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <Tabs defaultValue="personal" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="personal">
                     <User className="mr-2 h-4 w-4" />
                     Datos Personales
@@ -448,6 +530,7 @@ export function PatientCreateDialog({
                     <Phone className="mr-2 h-4 w-4" />
                     Emergencia
                   </TabsTrigger>
+                  <TabsTrigger value="billing">Facturación</TabsTrigger>
                   <TabsTrigger value="notes">
                     <FileText className="mr-2 h-4 w-4" />
                     Notas
@@ -942,10 +1025,156 @@ export function PatientCreateDialog({
                     </Button>
                   </div>
                 </TabsContent>
-                <TabsContent value="notes" className="space-y-4 mt-4">
+                <TabsContent value="billing" className="space-y-4 mt-4">
                   <Separator className="my-4" />
+                  <h3 className="text-lg font-semibold">
+                    Datos de Facturación
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Información necesaria para la emisión de facturas
+                  </p>
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="billingIsSameAsPatient"
+                        checked={formData.billingIsSameAsPatient}
+                        onCheckedChange={(checked) => {
+                          setFormData({
+                            ...formData,
+                            billingIsSameAsPatient: checked === true,
+                            billingName:
+                              checked === true ? "" : formData.billingName,
+                            billingEmail:
+                              checked === true ? "" : formData.billingEmail,
+                          });
+                        }}
+                      />
+                      <Label
+                        htmlFor="billingIsSameAsPatient"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        La factura será a nombre del paciente
+                      </Label>
+                    </div>
+                    {!formData.billingIsSameAsPatient && (
+                      <div className="space-y-2">
+                        <Label htmlFor="billingName">
+                          Nombre o Razón Social
+                          <span className="text-red-500 ml-1">*</span>
+                        </Label>
+                        <Input
+                          id="billingName"
+                          value={formData.billingName}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              billingName: e.target.value,
+                            })
+                          }
+                          placeholder="Nombre completo o razón social"
+                        />
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="billingRFC">
+                          RFC
+                          <span className="text-red-500 ml-1">*</span>
+                        </Label>
+                        <Input
+                          id="billingRFC"
+                          value={formData.billingRFC}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              billingRFC: e.target.value.toUpperCase(),
+                            })
+                          }
+                          placeholder="XAXX010101000"
+                          maxLength={13}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billingPostalCode">
+                          Código Postal
+                          <span className="text-red-500 ml-1">*</span>
+                        </Label>
+                        <Input
+                          id="billingPostalCode"
+                          value={formData.billingPostalCode}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              billingPostalCode: e.target.value,
+                            })
+                          }
+                          placeholder="12345"
+                          maxLength={5}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="billingTaxRegime">
+                        Régimen Fiscal
+                        <span className="text-red-500 ml-1">*</span>
+                      </Label>
+                      <Input
+                        id="billingTaxRegime"
+                        value={formData.billingTaxRegime}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            billingTaxRegime: e.target.value,
+                          })
+                        }
+                        placeholder="Ej: 612 - Personas Físicas con Actividades Empresariales"
+                      />
+                    </div>
+                    {!formData.billingIsSameAsPatient && (
+                      <div className="space-y-2">
+                        <Label htmlFor="billingEmail">
+                          Correo Electrónico para Factura
+                          <span className="text-red-500 ml-1">*</span>
+                        </Label>
+                        <Input
+                          id="billingEmail"
+                          type="email"
+                          value={formData.billingEmail}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              billingEmail: e.target.value,
+                            })
+                          }
+                          placeholder="correo@ejemplo.com"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleClose}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex-1"
+                    >
+                      {isLoading ? "Creando..." : "Crear Paciente"}
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="notes" className="space-y-4 mt-4">
+                  \n <Separator className="my-4" />
+                  \n{" "}
                   <div className="space-y-2">
-                    <Label htmlFor="notes">Notas</Label>
+                    \n <Label htmlFor="notes">Notas</Label>
                     <Textarea
                       id="notes"
                       value={formData.notes}
@@ -956,7 +1185,6 @@ export function PatientCreateDialog({
                       rows={3}
                     />
                   </div>
-
                   <div className="flex gap-2">
                     <Button
                       type="button"

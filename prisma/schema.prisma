@@ -1,13 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider      = "prisma-client-js"
-  // Explicit output path so the generated client goes to the project's
-  // node_modules. This removes the deprecation warning and avoids
-  // ambiguity in monorepo setups. The path is relative to the `prisma/`
-  // folder, so `../node_modules/.prisma/client` points to the repo root's
-  // node_modules.
   output        = "../node_modules/.prisma/client"
   binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
@@ -18,19 +10,18 @@ datasource db {
   //url      = env("POSTGRES_URL")
 }
 
-// Authentication and user management
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -53,15 +44,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-enum Role {
-  ADMIN
-  CLINIC_ADMIN
-  RECEPTION
-  NURSE
-  DOCTOR
-  PATIENT
-}
-
 model User {
   id               String    @id @default(cuid())
   email            String    @unique
@@ -75,17 +57,15 @@ model User {
   phone            String?
   address          String?
   dateOfBirth      DateTime?
-  licenseNumber    String?   @unique // For DOCTOR role
+  licenseNumber    String?   @unique
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
-
-  // Relations
-  clinic   Clinic?   @relation(fields: [clinicId], references: [id])
-  accounts Account[]
-  sessions Session[]
-  doctor   Doctor?
+  accounts         Account[]
+  doctor           Doctor?
+  sessions         Session[]
+  clinic           Clinic?   @relation(fields: [clinicId], references: [id])
 
   @@index([email])
   @@index([clinicId])
@@ -93,30 +73,28 @@ model User {
 }
 
 model Clinic {
-  id                 String    @id @default(cuid())
+  id                 String            @id @default(cuid())
   name               String
   address            String?
   phone              String?
   email              String?
-  timezone           String    @default("America/Mexico_City")
-  locale             String    @default("es-MX")
-  defaultSlotMinutes Int       @default(30)
-  clinicAcronym      String    @unique
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  timezone           String            @default("America/Mexico_City")
+  locale             String            @default("es-MX")
+  defaultSlotMinutes Int               @default(30)
+  clinicAcronym      String            @unique
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
-
-  // Relations
-  users            User[]
-  rooms            Room[]
-  doctors          Doctor[]
-  patients         Patient[]
-  appointmentTypes AppointmentType[]
-  appointments     Appointment[]
-  auditLogs        AuditLog[]
-  importJobs       ImportJob[]
-  schedules        ClinicSchedule[]
+  appointments       Appointment[]
+  appointmentTypes   AppointmentType[]
+  auditLogs          AuditLog[]
+  schedules          ClinicSchedule[]
+  doctors            Doctor[]
+  importJobs         ImportJob[]
+  patients           Patient[]
+  rooms              Room[]
+  users              User[]
 
   @@index([isActive])
 }
@@ -124,16 +102,14 @@ model Clinic {
 model ClinicSchedule {
   id        String    @id @default(cuid())
   clinicId  String
-  weekday   Int // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  startTime String // HH:MM format
-  endTime   String // HH:MM format
+  weekday   Int
+  startTime String
+  endTime   String
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
-  // Relations
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, weekday, startTime, endTime])
   @@index([clinicId])
@@ -142,20 +118,18 @@ model ClinicSchedule {
 }
 
 model Room {
-  id        String    @id @default(cuid())
-  name      String
-  clinicId  String
-  location  String?
-  capacity  Int       @default(1)
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // Relations
-  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctors      Doctor[]
+  id           String        @id @default(cuid())
+  name         String
+  clinicId     String
+  location     String?
+  capacity     Int           @default(1)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
   appointments Appointment[]
+  doctors      Doctor[]
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, name])
   @@index([clinicId])
@@ -163,25 +137,23 @@ model Room {
 }
 
 model Doctor {
-  id        String    @id @default(cuid())
-  userId    String    @unique
-  clinicId  String
-  roomId    String?
-  acronym   String    @default("D")
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // Relations
-  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  defaultRoom  Room?             @relation(fields: [roomId], references: [id])
-  schedules    DoctorSchedule[]
-  exceptions   DoctorException[]
+  id           String            @id @default(cuid())
+  userId       String            @unique
+  clinicId     String
+  roomId       String?
+  acronym      String            @default("D")
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
   appointments Appointment[]
-  patients     Patient[]
+  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  defaultRoom  Room?             @relation(fields: [roomId], references: [id])
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exceptions   DoctorException[]
+  schedules    DoctorSchedule[]
   specialties  DoctorSpecialty[]
+  patients     Patient[]
 
   @@index([clinicId])
   @@index([isActive])
@@ -190,16 +162,14 @@ model Doctor {
 model DoctorSchedule {
   id        String    @id @default(cuid())
   doctorId  String
-  weekday   Int // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  startTime String // HH:MM format
-  endTime   String // HH:MM format
+  weekday   Int
+  startTime String
+  endTime   String
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
-  // Relations
-  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, weekday, startTime, endTime])
   @@index([doctorId])
@@ -210,17 +180,15 @@ model DoctorSchedule {
 model DoctorException {
   id        String    @id @default(cuid())
   doctorId  String
-  date      String // YYYY-MM-DD format
-  startTime String? // HH:MM format, null means full day
-  endTime   String? // HH:MM format, null means full day
+  date      String
+  startTime String?
+  endTime   String?
   reason    String?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
-  // Relations
-  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date, startTime, endTime])
   @@index([doctorId])
@@ -236,9 +204,7 @@ model Specialty {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   deletedAt   DateTime?
-
-  // Relations
-  doctors DoctorSpecialty[]
+  doctors     DoctorSpecialty[]
 
   @@index([isActive])
 }
@@ -247,13 +213,11 @@ model DoctorSpecialty {
   id          String    @id @default(cuid())
   doctorId    String
   specialtyId String
-  isPrimary   Boolean   @default(false) // Marca si es la especialidad principal
+  isPrimary   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  // Relations
-  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  doctor      Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  specialty   Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, specialtyId])
   @@index([doctorId])
@@ -261,20 +225,14 @@ model DoctorSpecialty {
   @@index([isPrimary])
 }
 
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
 model Patient {
-  id                               String    @id @default(cuid())
-  customId                         String    @unique
-  customDoctorAcronym              String? // Custom 3-letter acronym for doctor in ID
+  id                               String        @id @default(cuid())
+  customId                         String        @unique
+  customDoctorAcronym              String?
   firstName                        String
   lastName                         String
   secondLastName                   String?
-  noSecondLastName                 Boolean   @default(false)
+  noSecondLastName                 Boolean       @default(false)
   phone                            String
   email                            String?
   birthDate                        DateTime?
@@ -283,28 +241,33 @@ model Patient {
   emergencyContactFirstName        String?
   emergencyContactLastName         String?
   emergencyContactSecondLastName   String?
-  emergencyContactNoSecondLastName Boolean   @default(false)
+  emergencyContactNoSecondLastName Boolean       @default(false)
   emergencyContactPhone            String?
   primaryDoctorFirstName           String?
   primaryDoctorLastName            String?
   primaryDoctorSecondLastName      String?
-  primaryDoctorNoSecondLastName    Boolean   @default(false)
+  primaryDoctorNoSecondLastName    Boolean       @default(false)
   primaryDoctorPhone               String?
   notes                            String?
   clinicId                         String
   doctorId                         String?
-  pendingCompletion                Boolean   @default(false)
-  isActive                         Boolean   @default(true)
-  createdAt                        DateTime  @default(now())
-  updatedAt                        DateTime  @updatedAt
+  pendingCompletion                Boolean       @default(false)
+  isActive                         Boolean       @default(true)
+  createdAt                        DateTime      @default(now())
+  updatedAt                        DateTime      @updatedAt
   deletedAt                        DateTime?
-
-  // Relations
-  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor       Doctor?       @relation(fields: [doctorId], references: [id])
-  appointments Appointment[]
-  insurances   Insurance[]
-  consents     Consent[]
+  // Billing fields
+  billingIsSameAsPatient           Boolean       @default(true)
+  billingName                      String?
+  billingRFC                       String?
+  billingTaxRegime                 String?
+  billingPostalCode                String?
+  billingEmail                     String?
+  appointments                     Appointment[]
+  consents                         Consent[]
+  insurances                       Insurance[]
+  clinic                           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor                           Doctor?       @relation(fields: [doctorId], references: [id])
 
   @@index([clinicId])
   @@index([doctorId])
@@ -325,9 +288,7 @@ model Insurance {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
-
-  // Relations
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
   @@index([policyNumber])
@@ -335,43 +296,22 @@ model Insurance {
 }
 
 model AppointmentType {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   name            String
   clinicId        String
-  durationMin     Int       @default(30)
-  price           Decimal   @default(0) @db.Decimal(10, 2)
+  durationMin     Int           @default(30)
+  price           Decimal       @default(0) @db.Decimal(10, 2)
   preInstructions String?
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
-
-  // Relations
-  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  appointments Appointment[]
+  appointments    Appointment[]
+  clinic          Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, name])
   @@index([clinicId])
   @@index([isActive])
-}
-
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  IN_CONSULTATION
-  TRANSFER_PENDING
-  COMPLETED
-  CANCELLED
-  PAID
-  NO_SHOW
-  REQUIRES_RESCHEDULE
-}
-
-enum PaymentMethod {
-  CASH
-  DEBIT_CARD
-  CREDIT_CARD
-  TRANSFER
 }
 
 model Appointment {
@@ -383,10 +323,10 @@ model Appointment {
   appointmentTypeId String?
   customReason      String?
   customPrice       Decimal?          @db.Decimal(10, 2)
-  durationMin       Int?              // Custom duration in minutes (overrides appointmentType duration)
-  date              DateTime // Stored as UTC DateTime
-  startTime         String // HH:MM format
-  endTime           String // HH:MM format
+  durationMin       Int?
+  date              DateTime
+  startTime         String
+  endTime           String
   status            AppointmentStatus @default(PENDING)
   paymentMethod     PaymentMethod?
   paymentConfirmed  Boolean           @default(false)
@@ -398,13 +338,11 @@ model Appointment {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   deletedAt         DateTime?
-
-  // Relations
-  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctor          Doctor           @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  clinic          Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  room            Room?            @relation(fields: [roomId], references: [id])
-  appointmentType AppointmentType? @relation(fields: [appointmentTypeId], references: [id])
+  appointmentType   AppointmentType?  @relation(fields: [appointmentTypeId], references: [id])
+  clinic            Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor            Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient           Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  room              Room?             @relation(fields: [roomId], references: [id])
 
   @@unique([doctorId, date, startTime])
   @@unique([roomId, date, startTime])
@@ -416,20 +354,12 @@ model Appointment {
   @@index([isActive])
 }
 
-enum ConsentType {
-  TREATMENT
-  PRIVACY
-  DATA_SHARING
-  MARKETING
-  RESEARCH
-}
-
 model Consent {
   id        String      @id @default(cuid())
   patientId String
   type      ConsentType
   title     String
-  content   String      @db.Text
+  content   String
   granted   Boolean     @default(false)
   grantedAt DateTime?
   revokedAt DateTime?
@@ -438,9 +368,7 @@ model Consent {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?
-
-  // Relations
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient   Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
   @@index([type])
@@ -448,23 +376,12 @@ model Consent {
   @@index([isActive])
 }
 
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  VIEW
-  EXPORT
-  IMPORT
-}
-
 model AuditLog {
   id         String      @id @default(cuid())
   userId     String?
   clinicId   String?
   action     AuditAction
-  entityType String // e.g., "User", "Patient", "Appointment"
+  entityType String
   entityId   String?
   oldValues  Json?
   newValues  Json?
@@ -472,29 +389,13 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime    @default(now())
-
-  // Relations
-  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  clinic     Clinic?     @relation(fields: [clinicId], references: [id])
 
   @@index([userId])
   @@index([clinicId])
   @@index([action])
   @@index([entityType])
   @@index([createdAt])
-}
-
-enum ImportJobStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-enum ImportJobType {
-  PATIENTS
-  APPOINTMENTS
-  DOCTORS
-  USERS
 }
 
 model ImportJob {
@@ -516,12 +417,77 @@ model ImportJob {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   deletedAt     DateTime?
-
-  // Relations
-  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  clinic        Clinic?         @relation(fields: [clinicId], references: [id])
 
   @@index([clinicId])
   @@index([type])
   @@index([status])
   @@index([createdAt])
+}
+
+enum Role {
+  ADMIN
+  CLINIC_ADMIN
+  RECEPTION
+  NURSE
+  DOCTOR
+  PATIENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_CONSULTATION
+  TRANSFER_PENDING
+  COMPLETED
+  CANCELLED
+  PAID
+  NO_SHOW
+  REQUIRES_RESCHEDULE
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  TRANSFER
+}
+
+enum ConsentType {
+  TREATMENT
+  PRIVACY
+  DATA_SHARING
+  MARKETING
+  RESEARCH
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  VIEW
+  EXPORT
+  IMPORT
+}
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ImportJobType {
+  PATIENTS
+  APPOINTMENTS
+  DOCTORS
+  USERS
 }

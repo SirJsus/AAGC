@@ -59,6 +59,7 @@ import {
   updateAppointment,
 } from "@/lib/actions/appointments";
 import { createAppointment } from "@/lib/actions/appointments";
+import { updatePatient } from "@/lib/actions/patients";
 import { getDoctorExceptions } from "@/lib/actions/doctor-schedules";
 import {
   getDoctors,
@@ -100,6 +101,18 @@ export function AppointmentDetailsDialog({
   const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [paymentCustomEnabled, setPaymentCustomEnabled] = useState(false);
   const [showPendingError, setShowPendingError] = useState(false);
+
+  // Billing/Invoice state
+  const [requiresInvoice, setRequiresInvoice] = useState(false);
+  const [isEditingBillingData, setIsEditingBillingData] = useState(false);
+  const [billingData, setBillingData] = useState({
+    billingIsSameAsPatient: true,
+    billingName: "",
+    billingRFC: "",
+    billingTaxRegime: "",
+    billingPostalCode: "",
+    billingEmail: "",
+  });
 
   // localCustomPrice mirrors a custom price that may have been applied during
   // the dialog's lifecycle (e.g., when marking as PAID with a custom amount).
@@ -214,6 +227,19 @@ export function AppointmentDetailsDialog({
 
     // sync local custom price to the incoming appointment
     setLocalCustomPrice((appointment as any).customPrice ?? null);
+
+    // Initialize billing data from patient
+    setRequiresInvoice(false);
+    setIsEditingBillingData(false);
+    setBillingData({
+      billingIsSameAsPatient:
+        appointment.patient.billingIsSameAsPatient ?? true,
+      billingName: appointment.patient.billingName || "",
+      billingRFC: appointment.patient.billingRFC || "",
+      billingTaxRegime: appointment.patient.billingTaxRegime || "",
+      billingPostalCode: appointment.patient.billingPostalCode || "",
+      billingEmail: appointment.patient.billingEmail || "",
+    });
 
     // If the new appointment can be rescheduled and the dialog is open, load doctors/availability
     if (open && localStatus === AppointmentStatus.REQUIRES_RESCHEDULE) {
@@ -432,6 +458,139 @@ export function AppointmentDetailsDialog({
         if (!paymentAmountRegex.test(paymentAmount)) {
           toast.error(
             "El importe debe ser un número válido con hasta 2 decimales."
+          );
+          setIsUpdating(false);
+          return;
+        }
+      }
+
+      // Validate billing data if invoice is required
+      if (selectedNewStatus === AppointmentStatus.PAID && requiresInvoice) {
+        // First check if user is still editing billing data
+        if (isEditingBillingData) {
+          toast.error(
+            "Por favor confirma los datos de facturación antes de continuar"
+          );
+          setIsUpdating(false);
+          return;
+        }
+
+        // Validate RFC
+        if (!billingData.billingRFC?.trim()) {
+          toast.error("Por favor ingresa el RFC para facturación");
+          setIsUpdating(false);
+          return;
+        }
+        const rfcRegex = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+        if (!rfcRegex.test(billingData.billingRFC.toUpperCase())) {
+          toast.error(
+            "El RFC no tiene un formato válido (debe ser de 12 o 13 caracteres)"
+          );
+          setIsUpdating(false);
+          return;
+        }
+
+        // Validate postal code
+        if (!billingData.billingPostalCode?.trim()) {
+          toast.error("Por favor ingresa el código postal para facturación");
+          setIsUpdating(false);
+          return;
+        }
+        const postalCodeRegex = /^\d{5}$/;
+        if (!postalCodeRegex.test(billingData.billingPostalCode)) {
+          toast.error("El código postal debe ser de 5 dígitos");
+          setIsUpdating(false);
+          return;
+        }
+
+        // Validate tax regime
+        if (!billingData.billingTaxRegime?.trim()) {
+          toast.error("Por favor ingresa el régimen fiscal para facturación");
+          setIsUpdating(false);
+          return;
+        }
+
+        // Validate name and email if not same as patient
+        if (!billingData.billingIsSameAsPatient) {
+          if (!billingData.billingName?.trim()) {
+            toast.error(
+              "Por favor ingresa el nombre o razón social para facturación"
+            );
+            setIsUpdating(false);
+            return;
+          }
+          if (!billingData.billingEmail?.trim()) {
+            toast.error(
+              "Por favor ingresa el correo electrónico para facturación"
+            );
+            setIsUpdating(false);
+            return;
+          }
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(billingData.billingEmail)) {
+            toast.error(
+              "Por favor ingresa un correo electrónico válido para facturación"
+            );
+            setIsUpdating(false);
+            return;
+          }
+        }
+
+        // Update patient billing data
+        try {
+          await updatePatient(appointment.patientId, {
+            firstName: appointment.patient.firstName,
+            lastName: appointment.patient.lastName,
+            secondLastName: appointment.patient.secondLastName || undefined,
+            noSecondLastName: appointment.patient.noSecondLastName,
+            phone: appointment.patient.phone,
+            email: appointment.patient.email || undefined,
+            birthDate: appointment.patient.birthDate
+              ? new Date(appointment.patient.birthDate)
+                  .toISOString()
+                  .split("T")[0]
+              : undefined,
+            gender: appointment.patient.gender || undefined,
+            address: appointment.patient.address || undefined,
+            emergencyContactFirstName:
+              appointment.patient.emergencyContactFirstName || undefined,
+            emergencyContactLastName:
+              appointment.patient.emergencyContactLastName || undefined,
+            emergencyContactSecondLastName:
+              appointment.patient.emergencyContactSecondLastName || undefined,
+            emergencyContactNoSecondLastName:
+              appointment.patient.emergencyContactNoSecondLastName,
+            emergencyContactPhone:
+              appointment.patient.emergencyContactPhone || undefined,
+            primaryDoctorFirstName:
+              appointment.patient.primaryDoctorFirstName || undefined,
+            primaryDoctorLastName:
+              appointment.patient.primaryDoctorLastName || undefined,
+            primaryDoctorSecondLastName:
+              appointment.patient.primaryDoctorSecondLastName || undefined,
+            primaryDoctorNoSecondLastName:
+              appointment.patient.primaryDoctorNoSecondLastName,
+            primaryDoctorPhone:
+              appointment.patient.primaryDoctorPhone || undefined,
+            notes: appointment.patient.notes || undefined,
+            doctorId: appointment.patient.doctorId || undefined,
+            customDoctorAcronym:
+              appointment.patient.customDoctorAcronym || undefined,
+            // Update billing fields
+            billingIsSameAsPatient: billingData.billingIsSameAsPatient,
+            billingName: billingData.billingIsSameAsPatient
+              ? undefined
+              : billingData.billingName || undefined,
+            billingRFC: billingData.billingRFC || undefined,
+            billingTaxRegime: billingData.billingTaxRegime || undefined,
+            billingPostalCode: billingData.billingPostalCode || undefined,
+            billingEmail: billingData.billingIsSameAsPatient
+              ? undefined
+              : billingData.billingEmail || undefined,
+          });
+        } catch (error) {
+          toast.error(
+            "Error al actualizar los datos de facturación del paciente"
           );
           setIsUpdating(false);
           return;
@@ -1291,6 +1450,341 @@ export function AppointmentDetailsDialog({
                             </p>
                           </div>
                         )}
+                      </div>
+                    )}
+                    {/* Invoice request section */}
+                    {selectedNewStatus === AppointmentStatus.PAID && (
+                      <div className="space-y-4">
+                        <Separator />
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="requiresInvoice"
+                            checked={requiresInvoice}
+                            onCheckedChange={(v) => {
+                              const newValue = v as boolean;
+                              setRequiresInvoice(newValue);
+                              setIsEditingBillingData(false);
+                              // Reset billing data to patient's values when toggling
+                              if (!newValue) {
+                                setBillingData({
+                                  billingIsSameAsPatient:
+                                    appointment.patient
+                                      .billingIsSameAsPatient ?? true,
+                                  billingName:
+                                    appointment.patient.billingName || "",
+                                  billingRFC:
+                                    appointment.patient.billingRFC || "",
+                                  billingTaxRegime:
+                                    appointment.patient.billingTaxRegime || "",
+                                  billingPostalCode:
+                                    appointment.patient.billingPostalCode || "",
+                                  billingEmail:
+                                    appointment.patient.billingEmail || "",
+                                });
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="requiresInvoice"
+                            className="text-sm font-medium"
+                          >
+                            ¿Requiere factura?
+                          </label>
+                        </div>
+
+                        {requiresInvoice &&
+                          (() => {
+                            // Check if patient has complete billing data
+                            const hasCompleteBillingData =
+                              billingData.billingRFC?.trim() &&
+                              billingData.billingTaxRegime?.trim() &&
+                              billingData.billingPostalCode?.trim() &&
+                              (billingData.billingIsSameAsPatient ||
+                                (billingData.billingName?.trim() &&
+                                  billingData.billingEmail?.trim()));
+
+                            // Show confirmed data FIRST if data is complete and NOT editing
+                            if (
+                              hasCompleteBillingData &&
+                              !isEditingBillingData
+                            ) {
+                              return (
+                                <Alert className="border-green-200 bg-green-50">
+                                  <AlertCircle className="h-4 w-4 text-green-600" />
+                                  <AlertDescription>
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <p className="font-medium mb-2 text-green-900">
+                                          Datos de facturación confirmados:
+                                        </p>
+                                        <div className="space-y-1 text-sm text-green-800">
+                                          {!billingData.billingIsSameAsPatient &&
+                                            billingData.billingName && (
+                                              <p>
+                                                <strong>
+                                                  Nombre/Razón Social:
+                                                </strong>{" "}
+                                                {billingData.billingName}
+                                              </p>
+                                            )}
+                                          {billingData.billingRFC && (
+                                            <p>
+                                              <strong>RFC:</strong>{" "}
+                                              {billingData.billingRFC}
+                                            </p>
+                                          )}
+                                          {billingData.billingTaxRegime && (
+                                            <p>
+                                              <strong>Régimen Fiscal:</strong>{" "}
+                                              {billingData.billingTaxRegime}
+                                            </p>
+                                          )}
+                                          {billingData.billingPostalCode && (
+                                            <p>
+                                              <strong>Código Postal:</strong>{" "}
+                                              {billingData.billingPostalCode}
+                                            </p>
+                                          )}
+                                          {!billingData.billingIsSameAsPatient &&
+                                            billingData.billingEmail && (
+                                              <p>
+                                                <strong>Email:</strong>{" "}
+                                                {billingData.billingEmail}
+                                              </p>
+                                            )}
+                                          {billingData.billingIsSameAsPatient && (
+                                            <p className="text-green-700 italic">
+                                              La factura será a nombre del
+                                              paciente
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setIsEditingBillingData(true);
+                                        }}
+                                        className="ml-4"
+                                      >
+                                        Editar
+                                      </Button>
+                                    </div>
+                                  </AlertDescription>
+                                </Alert>
+                              );
+                            }
+
+                            // Show form to complete/edit billing data
+                            return (
+                              <Card className="border-yellow-200 bg-yellow-50">
+                                <CardHeader>
+                                  <CardTitle className="text-base flex items-center gap-2">
+                                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                                    {hasCompleteBillingData &&
+                                    isEditingBillingData
+                                      ? "Editar datos de facturación"
+                                      : "Completa los datos de facturación"}
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id="billingIsSameAsPatient"
+                                      checked={
+                                        billingData.billingIsSameAsPatient
+                                      }
+                                      onCheckedChange={(checked) => {
+                                        setBillingData({
+                                          ...billingData,
+                                          billingIsSameAsPatient:
+                                            checked === true,
+                                          billingName:
+                                            checked === true
+                                              ? ""
+                                              : billingData.billingName,
+                                          billingEmail:
+                                            checked === true
+                                              ? ""
+                                              : billingData.billingEmail,
+                                        });
+                                      }}
+                                    />
+                                    <Label
+                                      htmlFor="billingIsSameAsPatient"
+                                      className="text-sm font-normal cursor-pointer"
+                                    >
+                                      La factura será a nombre del paciente
+                                    </Label>
+                                  </div>
+
+                                  {!billingData.billingIsSameAsPatient && (
+                                    <div className="space-y-2">
+                                      <Label htmlFor="billingName">
+                                        Nombre o Razón Social
+                                        <span className="text-red-500 ml-1">
+                                          *
+                                        </span>
+                                      </Label>
+                                      <Input
+                                        id="billingName"
+                                        value={billingData.billingName}
+                                        onChange={(e) =>
+                                          setBillingData({
+                                            ...billingData,
+                                            billingName: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Nombre completo o razón social"
+                                      />
+                                    </div>
+                                  )}
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor="billingRFC">
+                                        RFC
+                                        <span className="text-red-500 ml-1">
+                                          *
+                                        </span>
+                                      </Label>
+                                      <Input
+                                        id="billingRFC"
+                                        value={billingData.billingRFC}
+                                        onChange={(e) =>
+                                          setBillingData({
+                                            ...billingData,
+                                            billingRFC:
+                                              e.target.value.toUpperCase(),
+                                          })
+                                        }
+                                        placeholder="XAXX010101000"
+                                        maxLength={13}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor="billingPostalCode">
+                                        Código Postal
+                                        <span className="text-red-500 ml-1">
+                                          *
+                                        </span>
+                                      </Label>
+                                      <Input
+                                        id="billingPostalCode"
+                                        value={billingData.billingPostalCode}
+                                        onChange={(e) =>
+                                          setBillingData({
+                                            ...billingData,
+                                            billingPostalCode: e.target.value,
+                                          })
+                                        }
+                                        placeholder="12345"
+                                        maxLength={5}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="billingTaxRegime">
+                                      Régimen Fiscal
+                                      <span className="text-red-500 ml-1">
+                                        *
+                                      </span>
+                                    </Label>
+                                    <Input
+                                      id="billingTaxRegime"
+                                      value={billingData.billingTaxRegime}
+                                      onChange={(e) =>
+                                        setBillingData({
+                                          ...billingData,
+                                          billingTaxRegime: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Ej: 612 - Personas Físicas con Actividades Empresariales"
+                                    />
+                                  </div>
+
+                                  {!billingData.billingIsSameAsPatient && (
+                                    <div className="space-y-2">
+                                      <Label htmlFor="billingEmail">
+                                        Correo Electrónico para Factura
+                                        <span className="text-red-500 ml-1">
+                                          *
+                                        </span>
+                                      </Label>
+                                      <Input
+                                        id="billingEmail"
+                                        type="email"
+                                        value={billingData.billingEmail}
+                                        onChange={(e) =>
+                                          setBillingData({
+                                            ...billingData,
+                                            billingEmail: e.target.value,
+                                          })
+                                        }
+                                        placeholder="correo@ejemplo.com"
+                                      />
+                                    </div>
+                                  )}
+
+                                  <p className="text-xs text-muted-foreground">
+                                    Estos datos se guardarán en el perfil del
+                                    paciente para futuras facturas.
+                                  </p>
+
+                                  {hasCompleteBillingData && (
+                                    <div className="flex gap-2 pt-2">
+                                      {isEditingBillingData && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => {
+                                            // Reset to original patient data
+                                            setBillingData({
+                                              billingIsSameAsPatient:
+                                                appointment.patient
+                                                  .billingIsSameAsPatient ??
+                                                true,
+                                              billingName:
+                                                appointment.patient
+                                                  .billingName || "",
+                                              billingRFC:
+                                                appointment.patient
+                                                  .billingRFC || "",
+                                              billingTaxRegime:
+                                                appointment.patient
+                                                  .billingTaxRegime || "",
+                                              billingPostalCode:
+                                                appointment.patient
+                                                  .billingPostalCode || "",
+                                              billingEmail:
+                                                appointment.patient
+                                                  .billingEmail || "",
+                                            });
+                                            setIsEditingBillingData(false);
+                                          }}
+                                          className="flex-1"
+                                        >
+                                          Cancelar
+                                        </Button>
+                                      )}
+                                      <Button
+                                        type="button"
+                                        onClick={() => {
+                                          setIsEditingBillingData(false);
+                                        }}
+                                        className="flex-1"
+                                      >
+                                        Confirmar Datos
+                                      </Button>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })()}
                       </div>
                     )}
                     {/* Option: create a follow-up appointment when marking as COMPLETED */}
