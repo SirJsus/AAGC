@@ -17,12 +17,20 @@ function removeAccents(str: string): string {
 }
 
 const createPatientSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
+  firstName: z.string().min(1, "Por favor ingresa el nombre del paciente"),
+  lastName: z
+    .string()
+    .min(1, "Por favor ingresa el apellido paterno del paciente"),
   secondLastName: z.string().optional(),
   noSecondLastName: z.boolean().optional(),
-  phone: z.string().min(1, "Phone is required"),
-  email: z.string().email().optional().or(z.literal("")),
+  phone: z
+    .string()
+    .min(1, "Por favor ingresa el número de teléfono del paciente"),
+  email: z
+    .string()
+    .email("Por favor ingresa un correo electrónico válido")
+    .optional()
+    .or(z.literal("")),
   birthDate: z.string().optional(),
   gender: z.nativeEnum(Gender).optional(),
   address: z.string().optional(),
@@ -39,6 +47,17 @@ const createPatientSchema = z.object({
   notes: z.string().optional(),
   doctorId: z.string().optional(),
   customDoctorAcronym: z.string().length(3).optional(), // Custom 3-letter acronym for doctor
+  // Billing fields
+  billingIsSameAsPatient: z.boolean().optional(),
+  billingName: z.string().optional(),
+  billingRFC: z.string().optional(),
+  billingTaxRegime: z.string().optional(),
+  billingPostalCode: z.string().optional(),
+  billingEmail: z
+    .string()
+    .email("Por favor ingresa un correo electrónico válido para facturación")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function createPatient(data: z.infer<typeof createPatientSchema>) {
@@ -50,26 +69,43 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
 
   const validatedData = createPatientSchema.parse(data);
 
-  // Get clinic for patient acronym and counter
+  // Get clinic for patient - prioritize doctor's clinic if doctorId is provided
   let clinic = null;
 
-  if (session.user.clinicId) {
-    clinic = await prisma.clinic.findFirst({
-      where: {
-        id: session.user.clinicId,
-        isActive: true,
-      },
+  if (validatedData.doctorId) {
+    // If a doctor is selected, use the doctor's clinic
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: validatedData.doctorId },
+      include: { clinic: true },
     });
-  } else if (session.user.role === "ADMIN") {
-    // For ADMIN users without a clinic, get the first active clinic
-    clinic = await prisma.clinic.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: "asc" },
-    });
+
+    if (doctor && doctor.clinic.isActive) {
+      clinic = doctor.clinic;
+    }
+  }
+
+  // Fallback to user's clinic or first active clinic
+  if (!clinic) {
+    if (session.user.clinicId) {
+      clinic = await prisma.clinic.findFirst({
+        where: {
+          id: session.user.clinicId,
+          isActive: true,
+        },
+      });
+    } else if (session.user.role === "ADMIN") {
+      // For ADMIN users without a clinic, get the first active clinic
+      clinic = await prisma.clinic.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
+    }
   }
 
   if (!clinic) {
-    throw new Error("No active clinic found");
+    throw new Error(
+      "No se encontró ninguna clínica activa. Por favor contacta al administrador"
+    );
   }
 
   // Generate patient acronym: {FirstInitial}{LastNameInitial}{SecondLastNameInitial}
@@ -131,7 +167,7 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
     // If somehow the ID exists, add timestamp to make it unique
     const timestamp = Date.now().toString().slice(-4);
     throw new Error(
-      `CustomId collision detected. Please try again. (${customId}-${timestamp})`
+      `Ya existe un paciente con este identificador. Por favor intenta nuevamente. Si el problema persiste, contacta al administrador. (Ref: ${customId}-${timestamp})`
     );
   }
 
@@ -169,6 +205,13 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
       notes: validatedData.notes || null,
       doctorId: validatedData.doctorId || null,
       pendingCompletion: true, // Mark as temporary/pending completion
+      // Billing fields
+      billingIsSameAsPatient: validatedData.billingIsSameAsPatient ?? true,
+      billingName: validatedData.billingName || null,
+      billingRFC: validatedData.billingRFC || null,
+      billingTaxRegime: validatedData.billingTaxRegime || null,
+      billingPostalCode: validatedData.billingPostalCode || null,
+      billingEmail: validatedData.billingEmail || null,
     },
     include: {
       clinic: true,
@@ -193,23 +236,39 @@ export async function previewPatientId(data: {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para realizar esta acción");
   }
 
-  // Get clinic
+  // Get clinic - prioritize doctor's clinic if doctorId is provided
   let clinic = null;
-  if (session.user.clinicId) {
-    clinic = await prisma.clinic.findFirst({
-      where: {
-        id: session.user.clinicId,
-        isActive: true,
-      },
+
+  if (data.doctorId) {
+    // If a doctor is selected, use the doctor's clinic
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: data.doctorId },
+      include: { clinic: true },
     });
-  } else if (session.user.role === "ADMIN") {
-    clinic = await prisma.clinic.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: "asc" },
-    });
+
+    if (doctor && doctor.clinic.isActive) {
+      clinic = doctor.clinic;
+    }
+  }
+
+  // Fallback to user's clinic or first active clinic
+  if (!clinic) {
+    if (session.user.clinicId) {
+      clinic = await prisma.clinic.findFirst({
+        where: {
+          id: session.user.clinicId,
+          isActive: true,
+        },
+      });
+    } else if (session.user.role === "ADMIN") {
+      clinic = await prisma.clinic.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
+    }
   }
 
   if (!clinic) {
@@ -267,10 +326,22 @@ export async function updatePatient(
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManagePatients(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para actualizar pacientes");
   }
 
   const validatedData = createPatientSchema.parse(data);
+
+  // Get clinic from doctor if doctorId is provided
+  let clinicId: string | undefined;
+  if (validatedData.doctorId) {
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: validatedData.doctorId },
+      select: { clinicId: true },
+    });
+    if (doctor) {
+      clinicId = doctor.clinicId;
+    }
+  }
 
   // Check if patient has all required data
   const hasCompleteData = !!(
@@ -314,7 +385,15 @@ export async function updatePatient(
       primaryDoctorPhone: validatedData.primaryDoctorPhone || null,
       notes: validatedData.notes || null,
       doctorId: validatedData.doctorId || null,
+      ...(clinicId && { clinicId }), // Update clinic only if doctor is selected
       pendingCompletion: !hasCompleteData, // Mark as completed when all required data is present
+      // Billing fields
+      billingIsSameAsPatient: validatedData.billingIsSameAsPatient ?? true,
+      billingName: validatedData.billingName || null,
+      billingRFC: validatedData.billingRFC || null,
+      billingTaxRegime: validatedData.billingTaxRegime || null,
+      billingPostalCode: validatedData.billingPostalCode || null,
+      billingEmail: validatedData.billingEmail || null,
     },
     include: {
       clinic: true,
@@ -332,7 +411,7 @@ export async function deletePatient(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManagePatients(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para eliminar pacientes");
   }
 
   await prisma.patient.update({
@@ -354,6 +433,7 @@ export interface GetPatientsParams {
   status?: "active" | "inactive" | "all";
   gender?: Gender | "all";
   doctorId?: string | "all";
+  clinicId?: string | "all";
   pendingCompletion?: boolean | "all";
 }
 
@@ -361,7 +441,7 @@ export async function getPatients(params: GetPatientsParams = {}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canViewPatients(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver pacientes");
   }
 
   const {
@@ -371,6 +451,7 @@ export async function getPatients(params: GetPatientsParams = {}) {
     status = "all",
     gender = "all",
     doctorId = "all",
+    clinicId = "all",
     pendingCompletion = "all",
   } = params;
 
@@ -410,6 +491,11 @@ export async function getPatients(params: GetPatientsParams = {}) {
     baseWhere.id = { in: patientIds };
   } else if (session.user.role !== "ADMIN") {
     baseWhere.clinicId = session.user.clinicId || "";
+  }
+
+  // Clinic filter (only for ADMIN)
+  if (session.user.role === "ADMIN" && clinicId !== "all") {
+    baseWhere.clinicId = clinicId;
   }
 
   // Status filter
@@ -478,7 +564,7 @@ export async function getPatient(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canViewPatients(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver la información de pacientes");
   }
 
   const patient = await prisma.patient.findUnique({
@@ -500,7 +586,9 @@ export async function getPatient(id: string) {
   });
 
   if (!patient) {
-    throw new Error("Patient not found");
+    throw new Error(
+      "No se encontró el paciente. Es posible que haya sido eliminado"
+    );
   }
 
   // Check access
@@ -508,7 +596,9 @@ export async function getPatient(id: string) {
     session.user.role !== "ADMIN" &&
     patient.clinicId !== session.user.clinicId
   ) {
-    throw new Error("Unauthorized to view this patient");
+    throw new Error(
+      "No tienes permisos para ver la información de este paciente"
+    );
   }
 
   return patient;
@@ -518,7 +608,7 @@ export async function searchPatients(query: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canViewPatients(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para buscar pacientes");
   }
 
   const whereClause: any = {

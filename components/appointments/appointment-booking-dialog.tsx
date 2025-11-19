@@ -321,25 +321,103 @@ export function AppointmentBookingDialog({
   };
 
   const handleCreateTemporaryPatient = async () => {
+    // Validación de nombre
+    if (!newPatientData.firstName?.trim()) {
+      toast.error("Por favor ingresa el nombre del paciente");
+      return;
+    }
+
+    if (newPatientData.firstName.trim().length < 2) {
+      toast.error("El nombre debe tener al menos 2 caracteres");
+      return;
+    }
+
+    if (newPatientData.firstName.trim().length > 100) {
+      toast.error("El nombre es demasiado largo (máximo 100 caracteres)");
+      return;
+    }
+
+    // Validación de apellido paterno
+    if (!newPatientData.lastName?.trim()) {
+      toast.error("Por favor ingresa el apellido paterno del paciente");
+      return;
+    }
+
+    if (newPatientData.lastName.trim().length < 2) {
+      toast.error("El apellido paterno debe tener al menos 2 caracteres");
+      return;
+    }
+
+    if (newPatientData.lastName.trim().length > 100) {
+      toast.error(
+        "El apellido paterno es demasiado largo (máximo 100 caracteres)"
+      );
+      return;
+    }
+
+    // Validación de apellido materno
     if (
-      !newPatientData.firstName ||
-      !newPatientData.lastName ||
-      !newPatientData.phone
+      !newPatientData.noSecondLastName &&
+      !newPatientData.secondLastName?.trim()
     ) {
       toast.error(
-        "Por favor completa los campos requeridos (Nombre, Apellido Paterno, Teléfono)"
+        "Por favor ingresa el apellido materno o marca la casilla si el paciente no tiene"
       );
       return;
     }
 
     if (
-      !newPatientData.noSecondLastName &&
-      !newPatientData.secondLastName.trim()
+      newPatientData.secondLastName &&
+      newPatientData.secondLastName.trim().length > 100
     ) {
       toast.error(
-        "Por favor completa el Apellido Materno o marca la casilla si no tiene"
+        "El apellido materno es demasiado largo (máximo 100 caracteres)"
       );
       return;
+    }
+
+    // Validación de teléfono
+    if (!newPatientData.phone?.trim()) {
+      toast.error("Por favor ingresa el número de teléfono del paciente");
+      return;
+    }
+
+    const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+    if (!phoneRegex.test(newPatientData.phone)) {
+      toast.error(
+        "El número de teléfono solo debe contener números y los caracteres: + - ( ) espacios"
+      );
+      return;
+    }
+
+    // Validación de email si se proporciona
+    if (newPatientData.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newPatientData.email)) {
+        toast.error("Por favor ingresa un correo electrónico válido");
+        return;
+      }
+    }
+
+    // Validación de fecha de nacimiento si se proporciona
+    if (newPatientData.birthDate) {
+      const birthDate = new Date(newPatientData.birthDate);
+      const today = new Date();
+
+      if (birthDate > today) {
+        toast.error(
+          "La fecha de nacimiento no puede ser posterior a la fecha actual"
+        );
+        return;
+      }
+
+      const age = today.getFullYear() - birthDate.getFullYear();
+      if (age > 150) {
+        toast.error(
+          "La fecha de nacimiento ingresada no parece ser válida. Por favor verifica"
+        );
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -356,12 +434,14 @@ export function AppointmentBookingDialog({
         doctorId: selectedDoctor?.id, // Include the selected doctor ID
       });
       setSelectedPatient(patient);
-      toast.success("Paciente temporal creado");
+      toast.success("El paciente se creó correctamente");
       // Nuevo flujo: después de crear paciente temporal ir al paso de selección de tipo
       setStep("type");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Error al crear paciente"
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear el paciente. Por favor, verifica los datos e intenta nuevamente."
       );
     } finally {
       setIsLoading(false);
@@ -417,8 +497,91 @@ export function AppointmentBookingDialog({
   };
 
   const handleBookAppointment = async () => {
-    if (!selectedPatient || !selectedDoctor || !selectedDate || !selectedSlot) {
-      toast.error("Por favor completa todos los campos requeridos");
+    // Validación de paciente
+    if (!selectedPatient) {
+      toast.error("Por favor selecciona o crea un paciente");
+      setStep("patient");
+      return;
+    }
+
+    // Validación de doctor
+    if (!selectedDoctor) {
+      toast.error("Por favor selecciona un doctor");
+      setStep("doctor");
+      return;
+    }
+
+    // Validación de fecha
+    if (!selectedDate) {
+      toast.error("Por favor selecciona una fecha para la cita");
+      setStep("datetime");
+      return;
+    }
+
+    // Validación de horario
+    if (!selectedSlot) {
+      toast.error("Por favor selecciona un horario disponible");
+      setStep("datetime");
+      return;
+    }
+
+    // Validación de razón de la cita
+    if (selectedAppointmentType === "custom" && !customReason?.trim()) {
+      toast.error("Por favor ingresa la razón o motivo de la cita");
+      setStep("details");
+      return;
+    }
+
+    if (customReason && customReason.trim().length > 200) {
+      toast.error(
+        "La razón de la cita es demasiado larga (máximo 200 caracteres)"
+      );
+      setStep("details");
+      return;
+    }
+
+    // Validación de duración
+    const duration = parseInt(customDuration);
+    if (isNaN(duration) || duration < 5) {
+      toast.error("La duración de la cita debe ser al menos 5 minutos");
+      setStep("details");
+      return;
+    }
+
+    if (duration > 480) {
+      toast.error(
+        "La duración de la cita no puede ser mayor a 480 minutos (8 horas)"
+      );
+      setStep("details");
+      return;
+    }
+
+    // Validación de precio si se proporciona
+    if (customPrice) {
+      const price = parseFloat(customPrice);
+      if (isNaN(price)) {
+        toast.error("Por favor ingresa un precio válido");
+        setStep("details");
+        return;
+      }
+
+      if (price < 0) {
+        toast.error("El precio no puede ser negativo");
+        setStep("details");
+        return;
+      }
+
+      if (price > 999999.99) {
+        toast.error("El precio es demasiado alto (máximo 999,999.99)");
+        setStep("details");
+        return;
+      }
+    }
+
+    // Validación de notas si se proporcionan
+    if (notes && notes.trim().length > 1000) {
+      toast.error("Las notas son demasiado largas (máximo 1000 caracteres)");
+      setStep("details");
       return;
     }
 
@@ -446,12 +609,14 @@ export function AppointmentBookingDialog({
         notes: notes || undefined,
       });
 
-      toast.success("Cita creada exitosamente");
+      toast.success("La cita se agendó correctamente");
       handleClose();
       onSuccess?.();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Error al crear la cita"
+        error instanceof Error
+          ? error.message
+          : "No se pudo agendar la cita. Por favor, verifica los datos e intenta nuevamente."
       );
     } finally {
       setIsLoading(false);

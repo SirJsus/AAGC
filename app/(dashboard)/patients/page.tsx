@@ -17,6 +17,7 @@ interface PatientsPageProps {
     status?: "active" | "inactive" | "all";
     gender?: string;
     doctorId?: string;
+    clinicId?: string;
     pendingCompletion?: string;
   };
 }
@@ -36,6 +37,7 @@ export default async function PatientsPage({
   const status = searchParams.status || "active";
   const gender = searchParams.gender || "all";
   const doctorId = searchParams.doctorId || "all";
+  const clinicId = searchParams.clinicId || "all";
   const pendingCompletion =
     searchParams.pendingCompletion === "true"
       ? true
@@ -50,6 +52,7 @@ export default async function PatientsPage({
     status: status as any,
     gender: gender as any,
     doctorId,
+    clinicId,
     pendingCompletion: pendingCompletion as any,
   });
 
@@ -75,6 +78,20 @@ export default async function PatientsPage({
     orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
   });
 
+  // Get clinics for filter dropdown (only for ADMIN)
+  const clinics = await prisma.clinic.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
   const canEdit = Permissions.canEditPatients(session.user);
 
   return (
@@ -94,6 +111,7 @@ export default async function PatientsPage({
         totalPages={totalPages}
         currentPage={currentPage}
         doctors={doctors}
+        clinics={clinics}
       />
     </div>
   );

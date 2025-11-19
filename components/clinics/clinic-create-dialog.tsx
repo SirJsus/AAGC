@@ -98,8 +98,82 @@ export function ClinicCreateDialog({
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error("El nombre de la clínica es requerido");
+    // Validación de nombre de clínica
+    if (!formData.name?.trim()) {
+      toast.error("Por favor ingresa el nombre de la clínica");
+      return;
+    }
+
+    if (formData.name.trim().length < 3) {
+      toast.error("El nombre de la clínica debe tener al menos 3 caracteres");
+      return;
+    }
+
+    if (formData.name.trim().length > 100) {
+      toast.error(
+        "El nombre de la clínica es demasiado largo (máximo 100 caracteres)"
+      );
+      return;
+    }
+
+    // Validación de dirección si se proporciona
+    if (formData.address && formData.address.trim().length > 500) {
+      toast.error("La dirección es demasiado larga (máximo 500 caracteres)");
+      return;
+    }
+
+    // Validación de teléfono si se proporciona
+    if (formData.phone?.trim()) {
+      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+      if (!phoneRegex.test(formData.phone)) {
+        toast.error(
+          "El número de teléfono solo debe contener números y los caracteres: + - ( ) espacios"
+        );
+        return;
+      }
+    }
+
+    // Validación de email si se proporciona
+    if (formData.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        toast.error("Por favor ingresa un correo electrónico válido");
+        return;
+      }
+    }
+
+    // Validación de minutos por turno
+    if (formData.defaultSlotMinutes < 5) {
+      toast.error("Los minutos por turno deben ser al menos 5");
+      return;
+    }
+
+    if (formData.defaultSlotMinutes > 120) {
+      toast.error("Los minutos por turno no pueden ser más de 120");
+      return;
+    }
+
+    // Validación de acrónimo de clínica si se proporciona
+    if (formData.clinicAcronym?.trim()) {
+      if (formData.clinicAcronym.length > 5) {
+        toast.error(
+          "El acrónimo de la clínica es demasiado largo (máximo 5 caracteres)"
+        );
+        return;
+      }
+
+      const acronymRegex = /^[A-Z0-9]+$/;
+      if (!acronymRegex.test(formData.clinicAcronym)) {
+        toast.error(
+          "El acrónimo debe contener solo letras mayúsculas y números"
+        );
+        return;
+      }
+    }
+
+    // Validación de zona horaria
+    if (!selectedTimezone) {
+      toast.error("Por favor selecciona una zona horaria");
       return;
     }
 
@@ -115,13 +189,16 @@ export function ClinicCreateDialog({
         defaultSlotMinutes: Number(formData.defaultSlotMinutes),
         clinicAcronym: formData.clinicAcronym,
       });
-      toast.success("Clínica creada correctamente");
+      toast.success("La clínica se creó correctamente");
       setOpen(false);
       setCreatedClinic(newClinic);
       setScheduleDialogOpen(true);
       onSuccess?.();
     } catch (err: any) {
-      toast.error(err?.message || "Error al crear la clínica");
+      toast.error(
+        err?.message ||
+          "No se pudo crear la clínica. Por favor, verifica los datos e intenta nuevamente."
+      );
     } finally {
       setIsLoading(false);
     }

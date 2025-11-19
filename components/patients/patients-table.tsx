@@ -56,6 +56,11 @@ interface DoctorOption {
   };
 }
 
+interface ClinicOption {
+  id: string;
+  name: string;
+}
+
 interface PatientsTableProps {
   patients: PatientWithRelations[];
   canEdit?: boolean;
@@ -63,6 +68,7 @@ interface PatientsTableProps {
   totalPages: number;
   currentPage: number;
   doctors: DoctorOption[];
+  clinics: ClinicOption[];
 }
 
 export function PatientsTable({
@@ -72,6 +78,7 @@ export function PatientsTable({
   totalPages,
   currentPage,
   doctors,
+  clinics,
 }: PatientsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,6 +92,9 @@ export function PatientsTable({
   const [gender, setGender] = useState(searchParams.get("gender") || "all");
   const [doctorId, setDoctorId] = useState(
     searchParams.get("doctorId") || "all"
+  );
+  const [clinicId, setClinicId] = useState(
+    searchParams.get("clinicId") || "all"
   );
   const [pendingCompletion, setPendingCompletion] = useState(
     searchParams.get("pendingCompletion") || "all"
@@ -130,6 +140,7 @@ export function PatientsTable({
     if (status !== "all") params.set("status", status);
     if (gender !== "all") params.set("gender", gender);
     if (doctorId !== "all") params.set("doctorId", doctorId);
+    if (clinicId !== "all") params.set("clinicId", clinicId);
     if (pendingCompletion !== "all")
       params.set("pendingCompletion", pendingCompletion);
     params.set("page", "1"); // Reset to page 1 when filters change
@@ -285,6 +296,23 @@ export function PatientsTable({
               </SelectContent>
             </Select>
 
+            {/* Clinic Filter - Only for ADMIN */}
+            {session?.user?.role === "ADMIN" && (
+              <Select value={clinicId} onValueChange={setClinicId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Clínica" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las clínicas</SelectItem>
+                  {clinics.map((clinic) => (
+                    <SelectItem key={clinic.id} value={clinic.id}>
+                      {clinic.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Pending Completion Filter */}
             <Select
               value={pendingCompletion}
@@ -314,6 +342,7 @@ export function PatientsTable({
               status !== "active" ||
               gender !== "all" ||
               doctorId !== "all" ||
+              clinicId !== "all" ||
               pendingCompletion !== "all") && (
               <Button
                 variant="ghost"
@@ -322,6 +351,7 @@ export function PatientsTable({
                   setStatus("active");
                   setGender("all");
                   setDoctorId("all");
+                  setClinicId("all");
                   setPendingCompletion("all");
                   startTransition(() => {
                     router.push("/patients");
@@ -457,6 +487,7 @@ export function PatientsTable({
             status !== "all" ||
             gender !== "all" ||
             doctorId !== "all" ||
+            clinicId !== "all" ||
             pendingCompletion !== "all"
               ? "No se encontraron pacientes con los filtros aplicados."
               : "No hay pacientes registrados. Agrega tu primer paciente para comenzar."}

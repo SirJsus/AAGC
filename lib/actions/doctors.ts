@@ -8,56 +8,152 @@ import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 
 const createDoctorSchema = z.object({
-  userId: z.string().min(1, "User is required"),
-  clinicId: z.string().min(1, "Clinic is required"),
+  userId: z.string().min(1, "Por favor selecciona un usuario"),
+  clinicId: z.string().min(1, "Por favor selecciona una clínica"),
   roomId: z.string().optional(),
-  acronym: z.string().min(1).max(5).default("D"),
+  acronym: z
+    .string()
+    .min(1, "El acrónimo es requerido")
+    .max(5, "El acrónimo debe tener máximo 5 caracteres")
+    .default("D"),
 });
 
 const updateDoctorSchema = z.object({
-  clinicId: z.string().min(1, "Clinic is required"),
+  clinicId: z.string().min(1, "Por favor selecciona una clínica"),
   roomId: z.string().optional(),
-  acronym: z.string().min(1).max(5).default("D"),
+  acronym: z
+    .string()
+    .min(1, "El acrónimo es requerido")
+    .max(5, "El acrónimo debe tener máximo 5 caracteres")
+    .default("D"),
 });
 
 const createScheduleSchema = z.object({
-  doctorId: z.string().min(1),
-  weekday: z.number().min(0).max(6),
+  doctorId: z.string().min(1, "Por favor selecciona un doctor"),
+  weekday: z
+    .number()
+    .min(0, "El día debe estar entre 0 y 6")
+    .max(6, "El día debe estar entre 0 y 6"),
   startTime: z
     .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    .regex(
+      /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/,
+      "El formato de la hora de inicio no es válido. Usa formato HH:MM"
+    ),
   endTime: z
     .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    .regex(
+      /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/,
+      "El formato de la hora de finalización no es válido. Usa formato HH:MM"
+    ),
 });
 
 export async function createDoctor(data: z.infer<typeof createDoctorSchema>) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageDoctors(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para crear doctores");
   }
 
   const validatedData = createDoctorSchema.parse(data);
 
   if (!Permissions.canAccessClinic(session.user, validatedData.clinicId)) {
-    throw new Error("Cannot create doctor in this clinic");
+    throw new Error("No tienes acceso a esta clínica para crear doctores");
   }
 
-  const doctor = await prisma.doctor.create({
-    data: {
-      ...validatedData,
-      roomId: validatedData.roomId || null,
-    },
-    include: {
-      clinic: true,
-      user: true,
-      defaultRoom: true,
+  // Validate user exists and is active
+  const user = await prisma.user.findUnique({
+    where: { id: validatedData.userId },
+    select: { isActive: true, deletedAt: true, role: true },
+  });
+
+  if (!user || !user.isActive || user.deletedAt) {
+    throw new Error(
+      "El usuario seleccionado no está disponible o ha sido eliminado"
+    );
+  }
+
+  if (user.role !== "DOCTOR") {
+    throw new Error("El usuario seleccionado no tiene el rol de doctor");
+  }
+
+  // Check if user already has a doctor record
+  const existingDoctor = await prisma.doctor.findUnique({
+    where: { userId: validatedData.userId },
+  });
+
+  if (existingDoctor) {
+    throw new Error("Este usuario ya tiene un registro de doctor asociado");
+  }
+
+  // Check for duplicate acronym in the same clinic
+  const duplicateAcronym = await prisma.doctor.findFirst({
+    where: {
+      clinicId: validatedData.clinicId,
+      acronym: validatedData.acronym,
+      isActive: true,
+      deletedAt: null,
     },
   });
 
-  revalidatePath("/doctors");
-  return doctor;
+  if (duplicateAcronym) {
+    throw new Error(
+      `El acrónimo "${validatedData.acronym}" ya está en uso por otro doctor en esta clínica`
+    );
+  }
+
+  // Validate clinic exists and is active
+  const clinic = await prisma.clinic.findUnique({
+    where: { id: validatedData.clinicId },
+    select: { isActive: true, deletedAt: true },
+  });
+
+  if (!clinic || !clinic.isActive || clinic.deletedAt) {
+    throw new Error("La clínica seleccionada no está disponible");
+  }
+
+  // Validate room if provided
+  if (validatedData.roomId) {
+    const room = await prisma.room.findUnique({
+      where: { id: validatedData.roomId },
+      select: { isActive: true, deletedAt: true, clinicId: true },
+    });
+
+    if (!room || !room.isActive || room.deletedAt) {
+      throw new Error("El consultorio seleccionado no está disponible");
+    }
+
+    if (room.clinicId !== validatedData.clinicId) {
+      throw new Error(
+        "El consultorio seleccionado no pertenece a la clínica indicada"
+      );
+    }
+  }
+
+  try {
+    const doctor = await prisma.doctor.create({
+      data: {
+        ...validatedData,
+        roomId: validatedData.roomId || null,
+      },
+      include: {
+        clinic: true,
+        user: true,
+        defaultRoom: true,
+      },
+    });
+
+    revalidatePath("/doctors");
+    return doctor;
+  } catch (error) {
+    console.error("Error creating doctor:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(
+      "No se pudo crear el registro de doctor. Por favor intenta nuevamente"
+    );
+  }
 }
 
 export async function updateDoctor(
@@ -67,37 +163,137 @@ export async function updateDoctor(
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageDoctors(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para modificar doctores");
   }
 
   const validatedData = updateDoctorSchema.parse(data);
 
   if (!Permissions.canAccessClinic(session.user, validatedData.clinicId)) {
-    throw new Error("Cannot update doctor in this clinic");
+    throw new Error("No tienes acceso a esta clínica para modificar doctores");
   }
 
-  const doctor = await prisma.doctor.update({
+  // Validate doctor exists
+  const existingDoctor = await prisma.doctor.findUnique({
     where: { id },
-    data: {
-      ...validatedData,
-      roomId: validatedData.roomId || null,
-    },
-    include: {
-      clinic: true,
-      user: true,
-      defaultRoom: true,
+    select: { id: true, isActive: true, deletedAt: true },
+  });
+
+  if (!existingDoctor) {
+    throw new Error("No se encontró el doctor solicitado");
+  }
+
+  if (!existingDoctor.isActive || existingDoctor.deletedAt) {
+    throw new Error("No se puede modificar un doctor que ha sido dado de baja");
+  }
+
+  // Check for duplicate acronym in the same clinic (excluding current doctor)
+  const duplicateAcronym = await prisma.doctor.findFirst({
+    where: {
+      clinicId: validatedData.clinicId,
+      acronym: validatedData.acronym,
+      isActive: true,
+      deletedAt: null,
+      id: { not: id },
     },
   });
 
-  revalidatePath("/doctors");
-  return doctor;
+  if (duplicateAcronym) {
+    throw new Error(
+      `El acrónimo "${validatedData.acronym}" ya está en uso por otro doctor en esta clínica`
+    );
+  }
+
+  // Validate clinic exists and is active
+  const clinic = await prisma.clinic.findUnique({
+    where: { id: validatedData.clinicId },
+    select: { isActive: true, deletedAt: true },
+  });
+
+  if (!clinic || !clinic.isActive || clinic.deletedAt) {
+    throw new Error("La clínica seleccionada no está disponible");
+  }
+
+  // Validate room if provided
+  if (validatedData.roomId) {
+    const room = await prisma.room.findUnique({
+      where: { id: validatedData.roomId },
+      select: { isActive: true, deletedAt: true, clinicId: true },
+    });
+
+    if (!room || !room.isActive || room.deletedAt) {
+      throw new Error("El consultorio seleccionado no está disponible");
+    }
+
+    if (room.clinicId !== validatedData.clinicId) {
+      throw new Error(
+        "El consultorio seleccionado no pertenece a la clínica indicada"
+      );
+    }
+  }
+
+  try {
+    const doctor = await prisma.doctor.update({
+      where: { id },
+      data: {
+        ...validatedData,
+        roomId: validatedData.roomId || null,
+      },
+      include: {
+        clinic: true,
+        user: true,
+        defaultRoom: true,
+      },
+    });
+
+    revalidatePath("/doctors");
+    return doctor;
+  } catch (error) {
+    console.error("Error updating doctor:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(
+      "No se pudo actualizar el registro de doctor. Por favor intenta nuevamente"
+    );
+  }
 }
 
 export async function deleteDoctor(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !Permissions.canManageDoctors(session.user)) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para eliminar doctores");
+  }
+
+  // Validate doctor exists
+  const doctor = await prisma.doctor.findUnique({
+    where: { id },
+    select: { id: true, isActive: true, deletedAt: true },
+  });
+
+  if (!doctor) {
+    throw new Error("No se encontró el doctor solicitado");
+  }
+
+  if (!doctor.isActive || doctor.deletedAt) {
+    throw new Error("Este doctor ya ha sido dado de baja");
+  }
+
+  // Check for active appointments
+  const activeAppointments = await prisma.appointment.count({
+    where: {
+      doctorId: id,
+      isActive: true,
+      date: {
+        gte: new Date().toISOString().split("T")[0],
+      },
+    },
+  });
+
+  if (activeAppointments > 0) {
+    throw new Error(
+      `No se puede eliminar el doctor porque tiene ${activeAppointments} cita(s) activa(s) pendiente(s). Por favor cancela o reasigna las citas primero`
+    );
   }
 
   await prisma.doctor.update({
@@ -122,7 +318,7 @@ export async function getDoctors(params?: {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver la lista de doctores");
   }
 
   const {
@@ -265,7 +461,7 @@ export async function getDoctor(id: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver la información de doctores");
   }
 
   const doctor = await prisma.doctor.findUnique({
@@ -295,7 +491,9 @@ export async function getDoctor(id: string) {
   });
 
   if (!doctor) {
-    throw new Error("Doctor not found");
+    throw new Error(
+      "No se encontró el doctor solicitado. Es posible que haya sido eliminado"
+    );
   }
 
   // Check access
@@ -303,7 +501,9 @@ export async function getDoctor(id: string) {
     session.user.role !== "ADMIN" &&
     doctor.clinicId !== session.user.clinicId
   ) {
-    throw new Error("Unauthorized to view this doctor");
+    throw new Error(
+      "No tienes permisos para ver la información de este doctor"
+    );
   }
 
   // If doctor has no schedules, use clinic schedules as fallback
@@ -332,7 +532,7 @@ export async function getDoctorByUserId() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para acceder a esta información");
   }
 
   const doctor = await prisma.doctor.findUnique({
@@ -359,7 +559,9 @@ export async function getDoctorByUserId() {
   });
 
   if (!doctor) {
-    throw new Error("Doctor record not found for current user");
+    throw new Error(
+      "No se encontró el registro de doctor para el usuario actual. Por favor contacta al administrador"
+    );
   }
 
   // Ensure the session user can access this doctor (clinic match or admin)
@@ -367,7 +569,9 @@ export async function getDoctorByUserId() {
     session.user.role !== "ADMIN" &&
     doctor.clinicId !== session.user.clinicId
   ) {
-    throw new Error("Unauthorized to view this doctor");
+    throw new Error(
+      "No tienes permisos para ver la información de este doctor"
+    );
   }
 
   // If doctor has no schedules, use clinic schedules as fallback
@@ -396,7 +600,7 @@ export async function getDoctorSpecialties() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("No tienes permisos para ver las especialidades");
   }
 
   // Obtener todas las especialidades únicas del sistema

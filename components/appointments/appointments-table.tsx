@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { AppointmentStatus } from "@prisma/client";
+import { AppointmentStatus, Clinic } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Calendar, Clock, Eye, X } from "lucide-react";
+import { Trash2, Calendar, Clock, Eye, X, Filter } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   formatDateForDisplay,
@@ -23,7 +30,7 @@ import {
 } from "@/lib/utils/timezone";
 import { AppointmentBookingDialog } from "./appointment-booking-dialog";
 import { AppointmentDetailsDialog } from "./appointment-details-dialog";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getStatusLabel } from "@/lib/utils/appointment-state";
 import { useSession } from "next-auth/react";
 import { Permissions } from "@/lib/permissions";
@@ -35,11 +42,21 @@ import { startOfWeek, endOfWeek } from "date-fns";
 
 interface AppointmentsTableProps {
   appointments: AppointmentWithRelations[];
+  clinics?: Clinic[];
 }
 
-export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
+export function AppointmentsTable({
+  appointments,
+  clinics = [],
+}: AppointmentsTableProps) {
   const router = useRouter();
   const { data: session } = useSession() || {};
+  const searchParams = useSearchParams();
+
+  // State for clinic filter
+  const [clinicFilter, setClinicFilter] = useState<string>(
+    searchParams.get("clinicId") || "all"
+  );
 
   // State for date range filter - defaults to current week
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
@@ -208,6 +225,17 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
     router.refresh();
   };
 
+  const updateClinicFilter = (value: string) => {
+    setClinicFilter(value);
+    const params = new URLSearchParams(window.location.search);
+    if (value === "all") {
+      params.delete("clinicId");
+    } else {
+      params.set("clinicId", value);
+    }
+    router.push(`/appointments?${params.toString()}`);
+  };
+
   const getStatusBadgeVariant = (status: AppointmentStatus) => {
     switch (status) {
       case AppointmentStatus.CONFIRMED:
@@ -235,33 +263,56 @@ export function AppointmentsTable({ appointments }: AppointmentsTableProps) {
             <AppointmentBookingDialog onSuccess={handleAppointmentCreated} />
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <DateRangePicker
-            value={dateRange as DateRange}
-            onChange={(range) => setDateRange(range)}
-            className="flex-1"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const today = new Date();
-              setDateRange({
-                from: startOfWeek(today, { weekStartsOn: 0 }),
-                to: endOfWeek(today, { weekStartsOn: 0 }),
-              });
-            }}
-          >
-            Esta semana
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDateRange(undefined)}
-          >
-            <X className="h-4 w-4 mr-1" />
-            Limpiar filtro
-          </Button>
+        <div className="space-y-2">
+          {/* Clinic Filter (only for ADMIN) */}
+          {session?.user?.role === "ADMIN" && clinics.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={clinicFilter} onValueChange={updateClinicFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Clínica" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las clínicas</SelectItem>
+                  {clinics.map((clinic) => (
+                    <SelectItem key={clinic.id} value={clinic.id}>
+                      {clinic.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-2">
+            <DateRangePicker
+              value={dateRange as DateRange}
+              onChange={(range) => setDateRange(range)}
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                setDateRange({
+                  from: startOfWeek(today, { weekStartsOn: 0 }),
+                  to: endOfWeek(today, { weekStartsOn: 0 }),
+                });
+              }}
+            >
+              Esta semana
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDateRange(undefined)}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Limpiar filtro
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
