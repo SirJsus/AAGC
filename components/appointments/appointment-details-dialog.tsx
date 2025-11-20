@@ -35,6 +35,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getPatientEssentials } from "@/lib/patient";
+import { TAX_REGIMES, formatTaxRegime } from "@/lib/constants/tax-regimes";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import {
@@ -1536,7 +1537,9 @@ export function AppointmentDetailsDialog({
                                           {billingData.billingTaxRegime && (
                                             <p>
                                               <strong>Régimen Fiscal:</strong>{" "}
-                                              {billingData.billingTaxRegime}
+                                              {formatTaxRegime(
+                                                billingData.billingTaxRegime
+                                              )}
                                             </p>
                                           )}
                                           {billingData.billingPostalCode && (
@@ -1693,17 +1696,29 @@ export function AppointmentDetailsDialog({
                                         *
                                       </span>
                                     </Label>
-                                    <Input
-                                      id="billingTaxRegime"
+                                    <Select
                                       value={billingData.billingTaxRegime}
-                                      onChange={(e) =>
+                                      onValueChange={(value) =>
                                         setBillingData({
                                           ...billingData,
-                                          billingTaxRegime: e.target.value,
+                                          billingTaxRegime: value,
                                         })
                                       }
-                                      placeholder="Ej: 612 - Personas Físicas con Actividades Empresariales"
-                                    />
+                                    >
+                                      <SelectTrigger id="billingTaxRegime">
+                                        <SelectValue placeholder="Selecciona un régimen fiscal" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {TAX_REGIMES.map((regime) => (
+                                          <SelectItem
+                                            key={regime.code}
+                                            value={regime.code}
+                                          >
+                                            {regime.code} - {regime.description}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
 
                                   {!billingData.billingIsSameAsPatient && (
