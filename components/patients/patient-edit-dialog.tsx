@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { Patient, Doctor, Gender } from "@prisma/client";
 import { updatePatient } from "@/lib/actions/patients";
 import { getDoctors } from "@/lib/actions/doctors";
+import { TAX_REGIMES } from "@/lib/constants/tax-regimes";
 import { Hash } from "lucide-react";
 import { calculateAge } from "@/lib/patient";
 
@@ -326,15 +327,7 @@ export function PatientEditDialog({
       }
     }
 
-    if (
-      formData.billingTaxRegime &&
-      formData.billingTaxRegime.trim().length > 200
-    ) {
-      toast.error(
-        "El régimen fiscal es demasiado largo (máximo 200 caracteres)"
-      );
-      return;
-    }
+    // Tax regime validation removed - now using select from predefined list
 
     setIsLoading(true);
     try {
@@ -1008,19 +1001,28 @@ export function PatientEditDialog({
                     Régimen Fiscal
                     <span className="text-red-500 ml-1">*</span>
                   </Label>
-                  <Input
-                    id="billingTaxRegime"
+                  <Select
                     value={formData.billingTaxRegime}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       !readOnly &&
                       setFormData({
                         ...formData,
-                        billingTaxRegime: e.target.value,
+                        billingTaxRegime: value,
                       })
                     }
-                    placeholder="Ej: 612 - Personas Físicas con Actividades Empresariales"
                     disabled={readOnly}
-                  />
+                  >
+                    <SelectTrigger id="billingTaxRegime">
+                      <SelectValue placeholder="Selecciona un régimen fiscal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAX_REGIMES.map((regime) => (
+                        <SelectItem key={regime.code} value={regime.code}>
+                          {regime.code} - {regime.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {!formData.billingIsSameAsPatient && (
                   <div className="space-y-2">
