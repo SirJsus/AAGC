@@ -7,6 +7,14 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 
+// Helper function to remove accents from strings
+function removeAccents(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
 const createAppointmentTypeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   clinicId: z.string().min(1, "Clinic is required"),
@@ -140,33 +148,50 @@ export async function getAppointmentTypes(params?: {
     whereClause.clinicId = session.user.clinicId || "";
   }
 
-  // Search filter
-  if (search) {
-    whereClause.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { preInstructions: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
-  // Get total count
-  const total = await prisma.appointmentType.count({
-    where: whereClause,
-  });
-
-  // Calculate pagination
-  const totalPages = Math.ceil(total / pageSize);
-  const skip = (page - 1) * pageSize;
-
-  // Get appointment types with pagination
-  const appointmentTypes = await prisma.appointmentType.findMany({
+  // Get all appointment types matching base filters (without search initially)
+  const allAppointmentTypes = await prisma.appointmentType.findMany({
     where: whereClause,
     include: {
       clinic: true,
     },
     orderBy: [{ clinic: { name: "asc" } }, { name: "asc" }],
-    skip,
-    take: pageSize,
   });
+
+  // Apply flexible search filter if search term is provided
+  let filteredAppointmentTypes = allAppointmentTypes;
+  if (search) {
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter appointment types by checking if all query words appear in searchable fields
+    filteredAppointmentTypes = allAppointmentTypes.filter((type) => {
+      const name = removeAccents(type.name || "");
+      const preInstructions = removeAccents(type.preInstructions || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return name.includes(word) || preInstructions.includes(word);
+      });
+    });
+  }
+
+  // Get total count after filtering
+  const total = filteredAppointmentTypes.length;
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Apply pagination
+  const appointmentTypes = filteredAppointmentTypes.slice(
+    skip,
+    skip + pageSize
+  );
 
   // Convert Decimal to number for client component compatibility
   return {

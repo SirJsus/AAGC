@@ -520,24 +520,8 @@ export async function getPatients(params: GetPatientsParams = {}) {
     baseWhere.pendingCompletion = pendingCompletion;
   }
 
-  // Search filter
-  if (search) {
-    baseWhere.OR = [
-      { firstName: { contains: search, mode: "insensitive" } },
-      { lastName: { contains: search, mode: "insensitive" } },
-      { customId: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search } },
-      { email: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
-  // Get total count
-  const total = await prisma.patient.count({
-    where: baseWhere,
-  });
-
-  // Get paginated patients
-  const patients = await prisma.patient.findMany({
+  // Get all patients matching base filters (without search initially)
+  let allPatients = await prisma.patient.findMany({
     where: baseWhere,
     include: {
       clinic: true,
@@ -546,9 +530,44 @@ export async function getPatients(params: GetPatientsParams = {}) {
       },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    skip,
-    take: pageSize,
   });
+
+  // Apply flexible search filter if search term is provided
+  if (search) {
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter patients by checking if all query words appear in the full name or other fields
+    allPatients = allPatients.filter((patient) => {
+      const fullName = removeAccents(
+        `${patient.firstName} ${patient.lastName} ${patient.secondLastName || ""}`
+      );
+      const phone = patient.phone || "";
+      const email = removeAccents(patient.email || "");
+      const customId = removeAccents(patient.customId || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return (
+          fullName.includes(word) ||
+          phone.includes(word) ||
+          email.includes(word) ||
+          customId.includes(word)
+        );
+      });
+    });
+  }
+
+  // Get total count after filtering
+  const total = allPatients.length;
+
+  // Apply pagination
+  const patients = allPatients.slice(skip, skip + pageSize);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -613,20 +632,13 @@ export async function searchPatients(query: string) {
 
   const whereClause: any = {
     isActive: true,
-    OR: [
-      { firstName: { contains: query, mode: "insensitive" } },
-      { lastName: { contains: query, mode: "insensitive" } },
-      { secondLastName: { contains: query, mode: "insensitive" } },
-      { phone: { contains: query } },
-      { email: { contains: query, mode: "insensitive" } },
-      { customId: { contains: query, mode: "insensitive" } },
-    ],
   };
 
   if (session.user.role !== "ADMIN") {
     whereClause.clinicId = session.user.clinicId;
   }
 
+  // Get all active patients
   const patients = await prisma.patient.findMany({
     where: whereClause,
     include: {
@@ -636,8 +648,36 @@ export async function searchPatients(query: string) {
       },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    take: 20, // Limit search results
   });
 
-  return patients;
+  // Normalize query: remove accents and convert to uppercase
+  const normalizedQuery = removeAccents(query.trim());
+
+  // Split query into words for flexible matching
+  const queryWords = normalizedQuery
+    .split(/\s+/)
+    .filter((word) => word.length > 0);
+
+  // Filter patients by checking if all query words appear in the full name or other fields
+  const filteredPatients = patients.filter((patient) => {
+    const fullName = removeAccents(
+      `${patient.firstName} ${patient.lastName} ${patient.secondLastName || ""}`
+    );
+    const phone = patient.phone || "";
+    const email = removeAccents(patient.email || "");
+    const customId = removeAccents(patient.customId || "");
+
+    // Check if all query words appear somewhere in the searchable fields
+    return queryWords.every((word) => {
+      return (
+        fullName.includes(word) ||
+        phone.includes(word) ||
+        email.includes(word) ||
+        customId.includes(word)
+      );
+    });
+  });
+
+  // Limit results
+  return filteredPatients.slice(0, 20);
 }

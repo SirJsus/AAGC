@@ -7,6 +7,14 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 
+// Helper function to remove accents from strings
+function removeAccents(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
 const createClinicSchema = z.object({
   name: z.string().min(1, "Por favor ingresa el nombre de la clínica"),
   address: z.string().optional(),
@@ -181,32 +189,51 @@ export async function getClinics(params?: {
     whereClause.id = session.user.clinicId;
   }
 
-  // Search filter
+  // Get all clinics matching base filters (without search initially)
+  const allClinics = await prisma.clinic.findMany({
+    where: whereClause,
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+  });
+
+  // Apply flexible search filter if search term is provided
+  let filteredClinics = allClinics;
   if (search) {
-    whereClause.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { address: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-    ];
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter clinics by checking if all query words appear in searchable fields
+    filteredClinics = allClinics.filter((clinic) => {
+      const name = removeAccents(clinic.name || "");
+      const address = removeAccents(clinic.address || "");
+      const phone = removeAccents(clinic.phone || "");
+      const email = removeAccents(clinic.email || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return (
+          name.includes(word) ||
+          address.includes(word) ||
+          phone.includes(word) ||
+          email.includes(word)
+        );
+      });
+    });
   }
 
-  // Get total count
-  const total = await prisma.clinic.count({
-    where: whereClause,
-  });
+  // Get total count after filtering
+  const total = filteredClinics.length;
 
   // Calculate pagination
   const totalPages = Math.ceil(total / pageSize);
   const skip = (page - 1) * pageSize;
 
-  // Get clinics with pagination
-  const clinics = await prisma.clinic.findMany({
-    where: whereClause,
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    skip,
-    take: pageSize,
-  });
+  // Apply pagination
+  const clinics = filteredClinics.slice(skip, skip + pageSize);
 
   return {
     clinics,

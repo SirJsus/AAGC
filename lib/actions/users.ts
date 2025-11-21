@@ -9,6 +9,14 @@ import { Permissions } from "@/lib/permissions";
 import { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+// Helper function to remove accents from strings
+function removeAccents(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
 const createUserSchema = z.object({
   email: z.string().email("Por favor ingresa un correo electrónico válido"),
   password: z
@@ -487,27 +495,8 @@ export async function getUsers(params?: {
     whereClause.role = role;
   }
 
-  // Search filter
-  if (search) {
-    whereClause.OR = [
-      { firstName: { contains: search, mode: "insensitive" } },
-      { lastName: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
-  // Get total count
-  const total = await prisma.user.count({
-    where: whereClause,
-  });
-
-  // Calculate pagination
-  const totalPages = Math.ceil(total / pageSize);
-  const skip = (page - 1) * pageSize;
-
-  // Get users with pagination
-  const users = await prisma.user.findMany({
+  // Get all users matching base filters (without search initially)
+  const allUsers = await prisma.user.findMany({
     where: whereClause,
     include: {
       clinic: true,
@@ -528,9 +517,47 @@ export async function getUsers(params?: {
       },
     },
     orderBy: [{ role: "asc" }, { firstName: "asc" }],
-    skip,
-    take: pageSize,
   });
+
+  // Apply flexible search filter if search term is provided
+  let filteredUsers = allUsers;
+  if (search) {
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter users by checking if all query words appear in searchable fields
+    filteredUsers = allUsers.filter((user) => {
+      const fullName = removeAccents(
+        `${user.firstName} ${user.lastName} ${user.secondLastName || ""}`
+      );
+      const email = removeAccents(user.email || "");
+      const phone = removeAccents(user.phone || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return (
+          fullName.includes(word) ||
+          email.includes(word) ||
+          phone.includes(word)
+        );
+      });
+    });
+  }
+
+  // Get total count after filtering
+  const total = filteredUsers.length;
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Apply pagination
+  const users = filteredUsers.slice(skip, skip + pageSize);
 
   return {
     users,
