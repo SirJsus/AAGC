@@ -556,6 +556,38 @@ export async function deleteAppointment(id: string) {
   revalidatePath("/appointments");
 }
 
+export async function hardDeleteAppointment(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canDeleteAppointments(session.user)) {
+    throw new Error("No tienes permisos para eliminar permanentemente citas");
+  }
+
+  // Verify appointment exists before deletion
+  const appointment = await prisma.appointment.findUnique({
+    where: { id },
+    select: { id: true, clinicId: true },
+  });
+
+  if (!appointment) {
+    throw new Error("No se encontró la cita solicitada");
+  }
+
+  // If user is CLINIC_ADMIN, verify they have access to this clinic
+  if (session.user.role === "CLINIC_ADMIN") {
+    if (!Permissions.canAccessClinic(session.user, appointment.clinicId)) {
+      throw new Error("No tienes permisos para eliminar esta cita");
+    }
+  }
+
+  // Permanently delete from database
+  await prisma.appointment.delete({
+    where: { id },
+  });
+
+  revalidatePath("/appointments");
+}
+
 export async function getAppointments(
   date?: string,
   doctorId?: string,

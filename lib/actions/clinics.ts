@@ -122,6 +122,55 @@ export async function deleteClinic(id: string) {
   revalidatePath("/clinics");
 }
 
+export async function hardDeleteClinic(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || session.user.role !== "ADMIN") {
+    throw new Error(
+      "Solo los administradores pueden eliminar permanentemente clínicas"
+    );
+  }
+
+  // Check if clinic has related data
+  const clinic = await prisma.clinic.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          users: true,
+          doctors: true,
+          patients: true,
+          appointments: true,
+          rooms: true,
+        },
+      },
+    },
+  });
+
+  if (!clinic) {
+    throw new Error("La clínica no existe");
+  }
+
+  const hasRelatedData =
+    clinic._count.users > 0 ||
+    clinic._count.doctors > 0 ||
+    clinic._count.patients > 0 ||
+    clinic._count.appointments > 0 ||
+    clinic._count.rooms > 0;
+
+  if (hasRelatedData) {
+    throw new Error(
+      "No se puede eliminar permanentemente una clínica con datos relacionados (usuarios, doctores, pacientes, citas o consultorios). Por favor, usa la opción de desactivar en su lugar."
+    );
+  }
+
+  await prisma.clinic.delete({
+    where: { id },
+  });
+
+  revalidatePath("/clinics");
+}
+
 export async function setClinicActive(id: string, isActive: boolean) {
   const session = await getServerSession(authOptions);
 
