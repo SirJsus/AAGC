@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Calendar, Clock, Eye, X, Filter } from "lucide-react";
+import { Trash2, Calendar, Clock, Eye, X, Filter, Edit } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,11 +30,15 @@ import {
 } from "@/lib/utils/timezone";
 import { AppointmentBookingDialog } from "./appointment-booking-dialog";
 import { AppointmentDetailsDialog } from "./appointment-details-dialog";
+import { AppointmentEditDialog } from "./appointment-edit-dialog";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getStatusLabel } from "@/lib/utils/appointment-state";
 import { useSession } from "next-auth/react";
 import { Permissions } from "@/lib/permissions";
-import { updateAppointmentStatus } from "@/lib/actions/appointments";
+import {
+  updateAppointmentStatus,
+  hardDeleteAppointment,
+} from "@/lib/actions/appointments";
 import { AppointmentWithRelations } from "@/types/appointments";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -152,11 +156,18 @@ export function AppointmentsTable({
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editAppointment, setEditAppointment] =
+    useState<AppointmentWithRelations | null>(null);
   // Confirmation modal state for cancelling via the trash button
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAppointmentId, setConfirmAppointmentId] = useState<
     string | null
   >(null);
+  // State for permanent deletion confirmation
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [confirmTop, setConfirmTop] = useState<number>(30);
   const [confirmLeft, setConfirmLeft] = useState<number>(30);
   const [buttonsReversed, setButtonsReversed] = useState<boolean>(false);
@@ -165,6 +176,34 @@ export function AppointmentsTable({
   const handleViewDetails = (appointment: AppointmentWithRelations) => {
     setSelectedAppointment(appointment);
     setDetailsDialogOpen(true);
+  };
+
+  const handleEditAppointment = (appointment: AppointmentWithRelations) => {
+    setEditAppointment(appointment);
+    setEditDialogOpen(true);
+  };
+
+  const handlePermanentDelete = (appointmentId: string) => {
+    setConfirmDeleteId(appointmentId);
+    setConfirmDeleteOpen(true);
+  };
+
+  const performPermanentDelete = async () => {
+    if (!confirmDeleteId) return;
+    setIsDeleting(true);
+    try {
+      await hardDeleteAppointment(confirmDeleteId);
+      toast.success("Cita eliminada permanentemente");
+      setConfirmDeleteOpen(false);
+      setConfirmDeleteId(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error al eliminar la cita"
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleDeleteAppointment = (appointmentId: string) => {
@@ -382,16 +421,42 @@ export function AppointmentsTable({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleViewDetails(appointment)}
+                      title="Ver detalles"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteAppointment(appointment.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {session?.user &&
+                      Permissions.canEditAppointments(session.user) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditAppointment(appointment)}
+                          title="Editar cita"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                    {session?.user &&
+                    Permissions.canDeleteAppointments(session.user) ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePermanentDelete(appointment.id)}
+                        className="text-destructive hover:text-destructive"
+                        title="Eliminar permanentemente"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteAppointment(appointment.id)}
+                        title="Cancelar cita"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -413,6 +478,50 @@ export function AppointmentsTable({
           onOpenChange={setDetailsDialogOpen}
           onSuccess={handleAppointmentUpdated}
         />
+      )}
+
+      {editAppointment && (
+        <AppointmentEditDialog
+          appointment={editAppointment}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSuccess={handleAppointmentUpdated}
+        />
+      )}
+
+      {/* Custom confirmation modal for permanent deletion */}
+      {confirmDeleteOpen && (
+        <div className="fixed z-50 bg-background/80 inset-0 flex items-center justify-center">
+          <div className="bg-white rounded-md shadow-lg p-6 w-96 border border-destructive">
+            <h3 className="text-lg font-semibold mb-2 text-destructive">
+              ⚠️ Eliminar permanentemente
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Esta acción <strong>eliminará completamente</strong> la cita de la
+              base de datos y <strong>no se puede deshacer</strong>. ¿Estás
+              seguro de que deseas continuar?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfirmDeleteOpen(false);
+                  setConfirmDeleteId(null);
+                }}
+                disabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={performPermanentDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Eliminando..." : "Eliminar permanentemente"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Custom confirmation modal (fixed positioned with random coords) */}

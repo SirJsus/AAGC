@@ -132,6 +132,14 @@ export class Permissions {
     );
   }
 
+  static canDeleteAppointments(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
+  static canEditAppointments(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
   static canViewDashboard(user: PermissionCheck): boolean {
     return (
       user.role === Role.ADMIN ||
