@@ -75,6 +75,7 @@ export class Permissions {
       user.role === Role.ADMIN ||
       user.role === Role.CLINIC_ADMIN ||
       user.role === Role.RECEPTION ||
+      user.role === Role.DOCTOR ||
       user.role === Role.NURSE
     );
   }
@@ -95,6 +96,14 @@ export class Permissions {
       user.role === Role.RECEPTION ||
       user.role === Role.NURSE
     );
+  }
+
+  static canHardDeletePatients(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
+  static canEditPatientCustomId(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
   }
 
   static canManageAppointments(user: PermissionCheck): boolean {
@@ -130,6 +139,14 @@ export class Permissions {
       user.role === Role.CLINIC_ADMIN ||
       user.role === Role.RECEPTION
     );
+  }
+
+  static canDeleteAppointments(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
+  static canEditAppointments(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
   }
 
   static canViewDashboard(user: PermissionCheck): boolean {

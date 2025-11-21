@@ -40,14 +40,16 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Filter,
+  AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RoomCreateDialog } from "./room-create-dialog";
 import { RoomEditDialog } from "./room-edit-dialog";
-import { deleteRoom } from "@/lib/actions/rooms";
+import { deleteRoom, hardDeleteRoom } from "@/lib/actions/rooms";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useSession } from "next-auth/react";
 
 interface RoomWithRelations extends Room {
   clinic?: Clinic | null;
@@ -74,6 +76,7 @@ export function RoomsTable({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { data: session } = useSession();
 
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || ""
@@ -104,6 +107,27 @@ export function RoomsTable({
       setDeletingId(null);
     }
   };
+
+  const handleHardDeleteRoom = async (roomId: string) => {
+    setDeletingId(roomId);
+    try {
+      await hardDeleteRoom(roomId);
+      toast.success("Consultorio eliminado permanentemente");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Error al eliminar consultorio permanentemente"
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Check if user can hard delete
+  const canHardDelete =
+    session?.user?.role === "ADMIN" || session?.user?.role === "CLINIC_ADMIN";
 
   const updateFilters = () => {
     const params = new URLSearchParams();
@@ -319,39 +343,86 @@ export function RoomsTable({
                           </Button>
                         }
                       />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={
-                              deletingId === room?.id ||
-                              room?.isActive === false
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              ¿Eliminar consultorio?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acción marcará el consultorio como inactivo.
-                              No se eliminará permanentemente.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteRoom(room?.id || "")}
+
+                      {/* Soft Delete - Available for active rooms */}
+                      {room?.isActive && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deletingId === room?.id}
+                              title="Desactivar consultorio"
                             >
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                ¿Desactivar consultorio?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción marcará el consultorio como
+                                inactivo. No se eliminará permanentemente y
+                                podrá reactivarse posteriormente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteRoom(room?.id || "")}
+                              >
+                                Desactivar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+
+                      {/* Hard Delete - Only for ADMIN and CLINIC_ADMIN */}
+                      {canHardDelete && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deletingId === room?.id}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Eliminar permanentemente"
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-destructive">
+                                ⚠️ ¿Eliminar permanentemente?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                <strong className="text-destructive">
+                                  Esta acción NO se puede deshacer.
+                                </strong>{" "}
+                                El consultorio será eliminado permanentemente de
+                                la base de datos. Solo puedes hacer esto si el
+                                consultorio no tiene citas ni doctores
+                                asociados.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  handleHardDeleteRoom(room?.id || "")
+                                }
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Eliminar Permanentemente
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </div>
                   </TableCell>
                 )}

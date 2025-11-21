@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +30,10 @@ import { Patient, Doctor, Gender } from "@prisma/client";
 import { updatePatient } from "@/lib/actions/patients";
 import { getDoctors } from "@/lib/actions/doctors";
 import { TAX_REGIMES } from "@/lib/constants/tax-regimes";
-import { Hash } from "lucide-react";
+import { Permissions } from "@/lib/permissions";
+import { Hash, AlertCircle } from "lucide-react";
 import { calculateAge } from "@/lib/patient";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PatientEditDialogProps {
   patient: Patient;
@@ -45,8 +48,13 @@ export function PatientEditDialog({
   onSuccess,
   readOnly = false,
 }: PatientEditDialogProps) {
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<
+    "idle" | "verified" | "duplicate" | "error"
+  >("idle");
   const [doctors, setDoctors] = useState<
     Array<
       Doctor & {
@@ -67,6 +75,16 @@ export function PatientEditDialog({
       : patient.primaryDoctorFirstName || patient.primaryDoctorLastName
         ? "external"
         : "none"
+  );
+
+  // Parse customId into its three parts: {PatientAcronym}-{DoctorAcronym}-{Letter}{Number}
+  const customIdParts = patient.customId?.split("-") || ["", "", ""];
+  const [customIdPatient, setCustomIdPatient] = useState(
+    customIdParts[0] || ""
+  );
+  const [customIdDoctor, setCustomIdDoctor] = useState(customIdParts[1] || "");
+  const [customIdSequence, setCustomIdSequence] = useState(
+    customIdParts[2] || ""
   );
 
   const [formData, setFormData] = useState({
@@ -119,10 +137,29 @@ export function PatientEditDialog({
     }
   }, [open]);
 
+  // Helper function to capitalize names properly
+  const capitalizeName = (name: string): string => {
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((word) => {
+        if (word.length === 0) return "";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(" ");
+  };
+
   // Re-calcular edad cuando cambie la fecha en el formulario
   useEffect(() => {
     setAge(formData.birthDate ? calculateAge(formData.birthDate) : null);
   }, [formData.birthDate]);
+
+  // Resetear estado de verificación cuando cambian los campos del customId
+  useEffect(() => {
+    if (verificationStatus !== "idle") {
+      setVerificationStatus("idle");
+    }
+  }, [customIdPatient, customIdDoctor, customIdSequence]);
 
   const loadDoctors = async () => {
     try {
@@ -135,8 +172,131 @@ export function PatientEditDialog({
     }
   };
 
+  const verifyCustomId = async () => {
+    // Validar formato primero
+    if (!customIdPatient?.trim()) {
+      toast.error("Por favor ingresa la parte del paciente del ID");
+      return;
+    }
+    if (!customIdDoctor?.trim()) {
+      toast.error("Por favor ingresa la parte del doctor del ID");
+      return;
+    }
+    if (!customIdSequence?.trim()) {
+      toast.error("Por favor ingresa la secuencia del ID");
+      return;
+    }
+    if (!/^[A-Z0-9]+$/.test(customIdPatient.toUpperCase())) {
+      toast.error("La parte del paciente solo debe contener letras y números");
+      return;
+    }
+    if (!/^[A-Z0-9]+$/.test(customIdDoctor.toUpperCase())) {
+      toast.error("La parte del doctor solo debe contener letras y números");
+      return;
+    }
+    if (!/^[A-Z][0-9]{3}$/.test(customIdSequence.toUpperCase())) {
+      toast.error(
+        "La secuencia debe tener el formato: una letra seguida de 3 dígitos (ej: A001)"
+      );
+      return;
+    }
+
+    const newCustomId = `${customIdPatient.toUpperCase()}-${customIdDoctor.toUpperCase()}-${customIdSequence.toUpperCase()}`;
+
+    // Si el ID no ha cambiado, no hay necesidad de verificar
+    if (newCustomId === patient.customId) {
+      setVerificationStatus("verified");
+      toast.success("Este es el ID actual del paciente");
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerificationStatus("idle");
+
+    try {
+      const response = await fetch("/api/patients/verify-custom-id", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customId: newCustomId,
+          patientId: patient.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al verificar el ID");
+      }
+
+      if (data.available) {
+        setVerificationStatus("verified");
+        toast.success(`✓ El ID "${newCustomId}" está disponible`);
+      } else {
+        setVerificationStatus("duplicate");
+        toast.error(`El ID "${newCustomId}" ya está en uso por otro paciente`);
+      }
+    } catch (error) {
+      setVerificationStatus("error");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo verificar el ID. Por favor, intenta nuevamente."
+      );
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validación del customId si el usuario tiene permisos para editarlo
+    const canEditCustomId =
+      session?.user && Permissions.canEditPatientCustomId(session.user);
+    if (canEditCustomId) {
+      if (!customIdPatient?.trim()) {
+        toast.error("Por favor ingresa la parte del paciente del ID");
+        return;
+      }
+      if (!customIdDoctor?.trim()) {
+        toast.error("Por favor ingresa la parte del doctor del ID");
+        return;
+      }
+      if (!customIdSequence?.trim()) {
+        toast.error("Por favor ingresa la secuencia del ID");
+        return;
+      }
+      // Validar formato de las partes del customId
+      if (!/^[A-Z0-9]+$/.test(customIdPatient.toUpperCase())) {
+        toast.error(
+          "La parte del paciente solo debe contener letras y números"
+        );
+        return;
+      }
+      if (!/^[A-Z0-9]+$/.test(customIdDoctor.toUpperCase())) {
+        toast.error("La parte del doctor solo debe contener letras y números");
+        return;
+      }
+      if (!/^[A-Z][0-9]{3}$/.test(customIdSequence.toUpperCase())) {
+        toast.error(
+          "La secuencia debe tener el formato: una letra seguida de 3 dígitos (ej: A001)"
+        );
+        return;
+      }
+
+      // Verificar que el ID ha sido verificado si ha cambiado
+      const newCustomId = `${customIdPatient.toUpperCase()}-${customIdDoctor.toUpperCase()}-${customIdSequence.toUpperCase()}`;
+      if (
+        newCustomId !== patient.customId &&
+        verificationStatus !== "verified"
+      ) {
+        toast.error("Por favor verifica el ID personalizado antes de guardar");
+        return;
+      }
+    }
 
     // Validación de campos requeridos básicos
     if (!formData.firstName?.trim()) {
@@ -331,36 +491,43 @@ export function PatientEditDialog({
 
     setIsLoading(true);
     try {
-      await updatePatient(patient.id, {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        secondLastName: formData.secondLastName || undefined,
+      const updateData: any = {
+        firstName: capitalizeName(formData.firstName),
+        lastName: capitalizeName(formData.lastName),
+        secondLastName: formData.secondLastName
+          ? capitalizeName(formData.secondLastName)
+          : undefined,
         noSecondLastName: formData.noSecondLastName,
         phone: formData.phone,
         email: formData.email || undefined,
         birthDate: formData.birthDate || undefined,
         gender: formData.gender,
-        address: formData.address || undefined,
-        emergencyContactFirstName:
-          formData.emergencyContactFirstName || undefined,
-        emergencyContactLastName:
-          formData.emergencyContactLastName || undefined,
-        emergencyContactSecondLastName:
-          formData.emergencyContactSecondLastName || undefined,
+        address: formData.address
+          ? capitalizeName(formData.address)
+          : undefined,
+        emergencyContactFirstName: formData.emergencyContactFirstName
+          ? capitalizeName(formData.emergencyContactFirstName)
+          : undefined,
+        emergencyContactLastName: formData.emergencyContactLastName
+          ? capitalizeName(formData.emergencyContactLastName)
+          : undefined,
+        emergencyContactSecondLastName: formData.emergencyContactSecondLastName
+          ? capitalizeName(formData.emergencyContactSecondLastName)
+          : undefined,
         emergencyContactNoSecondLastName:
           formData.emergencyContactNoSecondLastName,
         emergencyContactPhone: formData.emergencyContactPhone || undefined,
         primaryDoctorFirstName:
-          doctorType === "external"
-            ? formData.primaryDoctorFirstName
+          doctorType === "external" && formData.primaryDoctorFirstName
+            ? capitalizeName(formData.primaryDoctorFirstName)
             : undefined,
         primaryDoctorLastName:
-          doctorType === "external"
-            ? formData.primaryDoctorLastName
+          doctorType === "external" && formData.primaryDoctorLastName
+            ? capitalizeName(formData.primaryDoctorLastName)
             : undefined,
         primaryDoctorSecondLastName:
-          doctorType === "external"
-            ? formData.primaryDoctorSecondLastName
+          doctorType === "external" && formData.primaryDoctorSecondLastName
+            ? capitalizeName(formData.primaryDoctorSecondLastName)
             : undefined,
         primaryDoctorNoSecondLastName:
           doctorType === "external"
@@ -385,7 +552,15 @@ export function PatientEditDialog({
         billingEmail: formData.billingIsSameAsPatient
           ? undefined
           : formData.billingEmail || undefined,
-      });
+      };
+
+      // Add customId if user has permission to edit it
+      if (canEditCustomId) {
+        const newCustomId = `${customIdPatient.toUpperCase()}-${customIdDoctor.toUpperCase()}-${customIdSequence.toUpperCase()}`;
+        updateData.customId = newCustomId;
+      }
+
+      await updatePatient(patient.id, updateData);
       toast.success("Los datos del paciente se guardaron correctamente");
       setOpen(false);
       onSuccess?.();
@@ -429,7 +604,7 @@ export function PatientEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Display Patient ID */}
+        {/* Display Patient ID - Simple View */}
         <div className="rounded-lg border bg-muted/50 p-3 flex items-center gap-3">
           <Hash className="h-5 w-5 text-blue-600" />
           <div className="flex-1">
@@ -453,12 +628,25 @@ export function PatientEditDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs defaultValue="personal" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-4">
+            <TabsList
+              className={`grid w-full mb-4 ${
+                session?.user &&
+                Permissions.canEditPatientCustomId(session.user) &&
+                !readOnly
+                  ? "grid-cols-6"
+                  : "grid-cols-5"
+              }`}
+            >
               <TabsTrigger value="personal">Datos Personales</TabsTrigger>
               <TabsTrigger value="doctor">Doctor</TabsTrigger>
               <TabsTrigger value="emergency">Emergencia</TabsTrigger>
               <TabsTrigger value="billing">Facturación</TabsTrigger>
               <TabsTrigger value="notes">Notas</TabsTrigger>
+              {session?.user &&
+                Permissions.canEditPatientCustomId(session.user) &&
+                !readOnly && (
+                  <TabsTrigger value="customId">ID Personalizado</TabsTrigger>
+                )}
             </TabsList>
             <TabsContent value="personal" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1065,6 +1253,134 @@ export function PatientEditDialog({
                 />
               </div>
             </TabsContent>
+            {session?.user &&
+              Permissions.canEditPatientCustomId(session.user) &&
+              !readOnly && (
+                <TabsContent value="customId" className="space-y-4">
+                  <Separator className="my-4" />
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Hash className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold">
+                        ID Personalizado
+                      </h3>
+                    </div>
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Precaución
+                    </Badge>
+                  </div>
+                  <Alert variant="destructive" className="py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      <strong>Advertencia:</strong> Modificar el ID puede romper
+                      la secuencia de identificadores. Manejo cuidadoso
+                      requerido.
+                    </AlertDescription>
+                  </Alert>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="customIdPatient" className="text-xs">
+                        Parte Paciente <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="customIdPatient"
+                        value={customIdPatient}
+                        onChange={(e) =>
+                          setCustomIdPatient(e.target.value.toUpperCase())
+                        }
+                        placeholder="PAC"
+                        className="font-mono"
+                        maxLength={10}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customIdDoctor" className="text-xs">
+                        Parte Doctor <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="customIdDoctor"
+                        value={customIdDoctor}
+                        onChange={(e) =>
+                          setCustomIdDoctor(e.target.value.toUpperCase())
+                        }
+                        placeholder="DOC"
+                        className="font-mono"
+                        maxLength={10}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customIdSequence" className="text-xs">
+                        Secuencia <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="customIdSequence"
+                        value={customIdSequence}
+                        onChange={(e) =>
+                          setCustomIdSequence(e.target.value.toUpperCase())
+                        }
+                        placeholder="A001"
+                        className="font-mono"
+                        maxLength={4}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">
+                        Vista previa:
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`font-mono text-base ${
+                          verificationStatus === "verified"
+                            ? "border-green-500 text-green-700 dark:text-green-400"
+                            : verificationStatus === "duplicate"
+                              ? "border-red-500 text-red-700 dark:text-red-400"
+                              : verificationStatus === "error"
+                                ? "border-orange-500 text-orange-700 dark:text-orange-400"
+                                : ""
+                        }`}
+                      >
+                        {verificationStatus === "verified" && "✓ "}
+                        {verificationStatus === "duplicate" && "✗ "}
+                        {customIdPatient || "PAC"}-{customIdDoctor || "DOC"}-
+                        {customIdSequence || "A001"}
+                      </Badge>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={
+                        verificationStatus === "verified"
+                          ? "default"
+                          : "secondary"
+                      }
+                      size="sm"
+                      onClick={verifyCustomId}
+                      disabled={isVerifying || isLoading}
+                      className={`${
+                        verificationStatus === "verified"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : verificationStatus === "duplicate"
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : ""
+                      }`}
+                    >
+                      {isVerifying ? (
+                        <>
+                          <span className="animate-pulse">Verificando...</span>
+                        </>
+                      ) : verificationStatus === "verified" ? (
+                        "✓ Verificado"
+                      ) : verificationStatus === "duplicate" ? (
+                        "✗ En Uso"
+                      ) : (
+                        "Verificar ID"
+                      )}
+                    </Button>
+                  </div>
+                </TabsContent>
+              )}
           </Tabs>
           <div className="flex gap-2 mt-4">
             <Button

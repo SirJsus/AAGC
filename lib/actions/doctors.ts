@@ -7,6 +7,14 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { Permissions } from "@/lib/permissions";
 
+// Helper function to remove accents from strings
+function removeAccents(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
 const createDoctorSchema = z.object({
   userId: z.string().min(1, "Por favor selecciona un usuario"),
   clinicId: z.string().min(1, "Por favor selecciona una clínica"),
@@ -357,17 +365,6 @@ export async function getDoctors(params?: {
     deletedAt: null,
   };
 
-  // Search filter
-  if (search) {
-    whereClause.user.OR = [
-      { firstName: { contains: search, mode: "insensitive" } },
-      { lastName: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-      { licenseNumber: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
   // Specialty filter
   if (specialty !== "all") {
     whereClause.specialties = {
@@ -377,17 +374,8 @@ export async function getDoctors(params?: {
     };
   }
 
-  // Get total count
-  const total = await prisma.doctor.count({
-    where: whereClause,
-  });
-
-  // Calculate pagination
-  const totalPages = Math.ceil(total / pageSize);
-  const skip = (page - 1) * pageSize;
-
-  // Get doctors with pagination
-  const doctors = await prisma.doctor.findMany({
+  // Get all doctors matching base filters (without search initially)
+  const allDoctors = await prisma.doctor.findMany({
     where: whereClause,
     include: {
       clinic: {
@@ -420,9 +408,49 @@ export async function getDoctors(params?: {
       },
     },
     orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
-    skip,
-    take: pageSize,
   });
+
+  // Apply flexible search filter if search term is provided
+  let filteredDoctors = allDoctors;
+  if (search) {
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter doctors by checking if all query words appear in searchable fields
+    filteredDoctors = allDoctors.filter((doctor) => {
+      const fullName = removeAccents(
+        `${doctor.user.firstName} ${doctor.user.lastName} ${doctor.user.secondLastName || ""}`
+      );
+      const phone = removeAccents(doctor.user.phone || "");
+      const email = removeAccents(doctor.user.email || "");
+      const licenseNumber = removeAccents(doctor.user.licenseNumber || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return (
+          fullName.includes(word) ||
+          phone.includes(word) ||
+          email.includes(word) ||
+          licenseNumber.includes(word)
+        );
+      });
+    });
+  }
+
+  // Get total count after filtering
+  const total = filteredDoctors.length;
+
+  // Calculate pagination
+  const totalPages = Math.ceil(total / pageSize);
+  const skip = (page - 1) * pageSize;
+
+  // Apply pagination
+  const doctors = filteredDoctors.slice(skip, skip + pageSize);
 
   // Map schedules to include clinic schedules as fallback
   const doctorsWithSchedules = doctors.map((doctor) => {

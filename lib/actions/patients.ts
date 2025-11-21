@@ -47,6 +47,7 @@ const createPatientSchema = z.object({
   notes: z.string().optional(),
   doctorId: z.string().optional(),
   customDoctorAcronym: z.string().length(3).optional(), // Custom 3-letter acronym for doctor
+  customId: z.string().optional(), // Allow customId to be updated by admins
   // Billing fields
   billingIsSameAsPatient: z.boolean().optional(),
   billingName: z.string().optional(),
@@ -134,7 +135,7 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
   // Get first letter of last name for sequencing (without accents)
   const lastNameInitial = removeAccents(validatedData.lastName.charAt(0));
 
-  // Count existing patients with same last name initial in this clinic
+  // Count existing patients with same last name initial and same doctor acronym in this clinic
   const patientsWithSameLetter = await prisma.patient.findMany({
     where: {
       clinicId: clinic.id,
@@ -142,12 +143,15 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
         startsWith: lastNameInitial,
         mode: "insensitive",
       },
+      customId: {
+        contains: `-${doctorAcronym}-`,
+      },
     },
     select: { customId: true, lastName: true },
     orderBy: { createdAt: "asc" },
   });
 
-  // Calculate next number for this letter
+  // Calculate next number for this letter and doctor
   const nextNumber = patientsWithSameLetter.length + 1;
 
   // Generate custom ID: {PatientAcronym}-{DoctorAcronym}-{Letter}{Number}
@@ -301,13 +305,16 @@ export async function previewPatientId(data: {
   // Get last name initial (without accents)
   const lastNameInitial = removeAccents(data.lastName.charAt(0));
 
-  // Count existing patients
+  // Count existing patients with same last name initial and same doctor acronym
   const patientsWithSameLetter = await prisma.patient.findMany({
     where: {
       clinicId: clinic.id,
       lastName: {
         startsWith: lastNameInitial,
         mode: "insensitive",
+      },
+      customId: {
+        contains: `-${doctorAcronym}-`,
       },
     },
   });
@@ -330,6 +337,27 @@ export async function updatePatient(
   }
 
   const validatedData = createPatientSchema.parse(data);
+
+  // Check if user can edit customId
+  const canEditCustomId = Permissions.canEditPatientCustomId(session.user);
+
+  // If customId is being changed, validate uniqueness
+  if (canEditCustomId && validatedData.customId) {
+    const existingPatient = await prisma.patient.findFirst({
+      where: {
+        customId: validatedData.customId,
+        NOT: {
+          id: id, // Exclude current patient
+        },
+      },
+    });
+
+    if (existingPatient) {
+      throw new Error(
+        `Ya existe otro paciente con el ID personalizado "${validatedData.customId}". Por favor elige uno diferente.`
+      );
+    }
+  }
 
   // Get clinic from doctor if doctorId is provided
   let clinicId: string | undefined;
@@ -385,6 +413,8 @@ export async function updatePatient(
       primaryDoctorPhone: validatedData.primaryDoctorPhone || null,
       notes: validatedData.notes || null,
       doctorId: validatedData.doctorId || null,
+      ...(canEditCustomId &&
+        validatedData.customId && { customId: validatedData.customId }), // Update customId only if user has permission
       ...(clinicId && { clinicId }), // Update clinic only if doctor is selected
       pendingCompletion: !hasCompleteData, // Mark as completed when all required data is present
       // Billing fields
@@ -419,6 +449,94 @@ export async function deletePatient(id: string) {
     data: {
       isActive: false,
       deletedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/patients");
+}
+
+export async function hardDeletePatient(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canHardDeletePatients(session.user)) {
+    throw new Error(
+      "No tienes permisos para eliminar permanentemente pacientes"
+    );
+  }
+
+  // Verificar si el paciente existe
+  const patient = await prisma.patient.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      _count: {
+        select: {
+          appointments: true,
+          consents: true,
+          insurances: true,
+        },
+      },
+    },
+  });
+
+  if (!patient) {
+    throw new Error("No se encontró el paciente solicitado");
+  }
+
+  // Verificar si tiene relaciones activas
+  const hasActiveRelations =
+    patient._count.appointments > 0 ||
+    patient._count.consents > 0 ||
+    patient._count.insurances > 0;
+
+  if (hasActiveRelations) {
+    throw new Error(
+      `No se puede eliminar permanentemente al paciente ${patient.firstName} ${patient.lastName} porque tiene registros relacionados (citas: ${patient._count.appointments}, consentimientos: ${patient._count.consents}, seguros: ${patient._count.insurances}). Por favor, elimina estos registros primero o usa la eliminación lógica.`
+    );
+  }
+
+  // Eliminar permanentemente
+  await prisma.patient.delete({
+    where: { id },
+  });
+
+  revalidatePath("/patients");
+}
+
+export async function reactivatePatient(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canManagePatients(session.user)) {
+    throw new Error("No tienes permisos para reactivar pacientes");
+  }
+
+  // Verificar si el paciente existe
+  const patient = await prisma.patient.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      isActive: true,
+    },
+  });
+
+  if (!patient) {
+    throw new Error("No se encontró el paciente solicitado");
+  }
+
+  if (patient.isActive) {
+    throw new Error("Este paciente ya está activo");
+  }
+
+  // Reactivar el paciente
+  await prisma.patient.update({
+    where: { id },
+    data: {
+      isActive: true,
+      deletedAt: null,
     },
   });
 
@@ -520,24 +638,8 @@ export async function getPatients(params: GetPatientsParams = {}) {
     baseWhere.pendingCompletion = pendingCompletion;
   }
 
-  // Search filter
-  if (search) {
-    baseWhere.OR = [
-      { firstName: { contains: search, mode: "insensitive" } },
-      { lastName: { contains: search, mode: "insensitive" } },
-      { customId: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search } },
-      { email: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
-  // Get total count
-  const total = await prisma.patient.count({
-    where: baseWhere,
-  });
-
-  // Get paginated patients
-  const patients = await prisma.patient.findMany({
+  // Get all patients matching base filters (without search initially)
+  let allPatients = await prisma.patient.findMany({
     where: baseWhere,
     include: {
       clinic: true,
@@ -546,9 +648,44 @@ export async function getPatients(params: GetPatientsParams = {}) {
       },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    skip,
-    take: pageSize,
   });
+
+  // Apply flexible search filter if search term is provided
+  if (search) {
+    // Normalize query: remove accents and convert to uppercase
+    const normalizedQuery = removeAccents(search.trim());
+
+    // Split query into words for flexible matching
+    const queryWords = normalizedQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    // Filter patients by checking if all query words appear in the full name or other fields
+    allPatients = allPatients.filter((patient) => {
+      const fullName = removeAccents(
+        `${patient.firstName} ${patient.lastName} ${patient.secondLastName || ""}`
+      );
+      const phone = patient.phone || "";
+      const email = removeAccents(patient.email || "");
+      const customId = removeAccents(patient.customId || "");
+
+      // Check if all query words appear somewhere in the searchable fields
+      return queryWords.every((word) => {
+        return (
+          fullName.includes(word) ||
+          phone.includes(word) ||
+          email.includes(word) ||
+          customId.includes(word)
+        );
+      });
+    });
+  }
+
+  // Get total count after filtering
+  const total = allPatients.length;
+
+  // Apply pagination
+  const patients = allPatients.slice(skip, skip + pageSize);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -613,20 +750,13 @@ export async function searchPatients(query: string) {
 
   const whereClause: any = {
     isActive: true,
-    OR: [
-      { firstName: { contains: query, mode: "insensitive" } },
-      { lastName: { contains: query, mode: "insensitive" } },
-      { secondLastName: { contains: query, mode: "insensitive" } },
-      { phone: { contains: query } },
-      { email: { contains: query, mode: "insensitive" } },
-      { customId: { contains: query, mode: "insensitive" } },
-    ],
   };
 
   if (session.user.role !== "ADMIN") {
     whereClause.clinicId = session.user.clinicId;
   }
 
+  // Get all active patients
   const patients = await prisma.patient.findMany({
     where: whereClause,
     include: {
@@ -636,8 +766,36 @@ export async function searchPatients(query: string) {
       },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    take: 20, // Limit search results
   });
 
-  return patients;
+  // Normalize query: remove accents and convert to uppercase
+  const normalizedQuery = removeAccents(query.trim());
+
+  // Split query into words for flexible matching
+  const queryWords = normalizedQuery
+    .split(/\s+/)
+    .filter((word) => word.length > 0);
+
+  // Filter patients by checking if all query words appear in the full name or other fields
+  const filteredPatients = patients.filter((patient) => {
+    const fullName = removeAccents(
+      `${patient.firstName} ${patient.lastName} ${patient.secondLastName || ""}`
+    );
+    const phone = patient.phone || "";
+    const email = removeAccents(patient.email || "");
+    const customId = removeAccents(patient.customId || "");
+
+    // Check if all query words appear somewhere in the searchable fields
+    return queryWords.every((word) => {
+      return (
+        fullName.includes(word) ||
+        phone.includes(word) ||
+        email.includes(word) ||
+        customId.includes(word)
+      );
+    });
+  });
+
+  // Limit results
+  return filteredPatients.slice(0, 20);
 }

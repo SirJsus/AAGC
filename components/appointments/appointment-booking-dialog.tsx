@@ -320,6 +320,25 @@ export function AppointmentBookingDialog({
     setStep("type");
   };
 
+  // Helper function to capitalize names properly
+  const capitalizeName = (name: string): string => {
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((word) => {
+        if (word.length === 0) return "";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(" ");
+  };
+
+  // Helper function to capitalize only the first letter of a sentence
+  const capitalizeSentence = (text: string): string => {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return "";
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  };
+
   const handleCreateTemporaryPatient = async () => {
     // Validación de nombre
     if (!newPatientData.firstName?.trim()) {
@@ -422,10 +441,17 @@ export function AppointmentBookingDialog({
 
     setIsLoading(true);
     try {
+      // Estandarizar nombres antes de enviar
+      const standardizedFirstName = capitalizeName(newPatientData.firstName);
+      const standardizedLastName = capitalizeName(newPatientData.lastName);
+      const standardizedSecondLastName = newPatientData.secondLastName
+        ? capitalizeName(newPatientData.secondLastName)
+        : undefined;
+
       const patient = await createPatient({
-        firstName: newPatientData.firstName,
-        lastName: newPatientData.lastName,
-        secondLastName: newPatientData.secondLastName || undefined,
+        firstName: standardizedFirstName,
+        lastName: standardizedLastName,
+        secondLastName: standardizedSecondLastName,
         noSecondLastName: newPatientData.noSecondLastName,
         phone: newPatientData.phone,
         email: newPatientData.email || undefined,
@@ -603,7 +629,10 @@ export function AppointmentBookingDialog({
             : undefined,
         roomId:
           selectedRoom && selectedRoom !== "none" ? selectedRoom : undefined,
-        customReason: customReason || undefined,
+        customReason:
+          customReason && selectedAppointmentType === "custom"
+            ? capitalizeSentence(customReason)
+            : customReason || undefined,
         customPrice: customPrice ? parseFloat(customPrice) : undefined,
         durationMin: parseInt(customDuration) || undefined,
         notes: notes || undefined,
