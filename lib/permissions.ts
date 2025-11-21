@@ -102,6 +102,10 @@ export class Permissions {
     return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
   }
 
+  static canEditPatientCustomId(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
   static canManageAppointments(user: PermissionCheck): boolean {
     return (
       user.role === Role.ADMIN ||

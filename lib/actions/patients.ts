@@ -47,6 +47,7 @@ const createPatientSchema = z.object({
   notes: z.string().optional(),
   doctorId: z.string().optional(),
   customDoctorAcronym: z.string().length(3).optional(), // Custom 3-letter acronym for doctor
+  customId: z.string().optional(), // Allow customId to be updated by admins
   // Billing fields
   billingIsSameAsPatient: z.boolean().optional(),
   billingName: z.string().optional(),
@@ -134,7 +135,7 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
   // Get first letter of last name for sequencing (without accents)
   const lastNameInitial = removeAccents(validatedData.lastName.charAt(0));
 
-  // Count existing patients with same last name initial in this clinic
+  // Count existing patients with same last name initial and same doctor acronym in this clinic
   const patientsWithSameLetter = await prisma.patient.findMany({
     where: {
       clinicId: clinic.id,
@@ -142,12 +143,15 @@ export async function createPatient(data: z.infer<typeof createPatientSchema>) {
         startsWith: lastNameInitial,
         mode: "insensitive",
       },
+      customId: {
+        contains: `-${doctorAcronym}-`,
+      },
     },
     select: { customId: true, lastName: true },
     orderBy: { createdAt: "asc" },
   });
 
-  // Calculate next number for this letter
+  // Calculate next number for this letter and doctor
   const nextNumber = patientsWithSameLetter.length + 1;
 
   // Generate custom ID: {PatientAcronym}-{DoctorAcronym}-{Letter}{Number}
@@ -301,13 +305,16 @@ export async function previewPatientId(data: {
   // Get last name initial (without accents)
   const lastNameInitial = removeAccents(data.lastName.charAt(0));
 
-  // Count existing patients
+  // Count existing patients with same last name initial and same doctor acronym
   const patientsWithSameLetter = await prisma.patient.findMany({
     where: {
       clinicId: clinic.id,
       lastName: {
         startsWith: lastNameInitial,
         mode: "insensitive",
+      },
+      customId: {
+        contains: `-${doctorAcronym}-`,
       },
     },
   });
@@ -330,6 +337,27 @@ export async function updatePatient(
   }
 
   const validatedData = createPatientSchema.parse(data);
+
+  // Check if user can edit customId
+  const canEditCustomId = Permissions.canEditPatientCustomId(session.user);
+
+  // If customId is being changed, validate uniqueness
+  if (canEditCustomId && validatedData.customId) {
+    const existingPatient = await prisma.patient.findFirst({
+      where: {
+        customId: validatedData.customId,
+        NOT: {
+          id: id, // Exclude current patient
+        },
+      },
+    });
+
+    if (existingPatient) {
+      throw new Error(
+        `Ya existe otro paciente con el ID personalizado "${validatedData.customId}". Por favor elige uno diferente.`
+      );
+    }
+  }
 
   // Get clinic from doctor if doctorId is provided
   let clinicId: string | undefined;
@@ -385,6 +413,8 @@ export async function updatePatient(
       primaryDoctorPhone: validatedData.primaryDoctorPhone || null,
       notes: validatedData.notes || null,
       doctorId: validatedData.doctorId || null,
+      ...(canEditCustomId &&
+        validatedData.customId && { customId: validatedData.customId }), // Update customId only if user has permission
       ...(clinicId && { clinicId }), // Update clinic only if doctor is selected
       pendingCompletion: !hasCompleteData, // Mark as completed when all required data is present
       // Billing fields
