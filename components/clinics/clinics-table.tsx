@@ -33,11 +33,25 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Filter,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { ClinicCreateDialog } from "@/components/clinics/clinic-create-dialog";
 import ClinicEditDialog from "@/components/clinics/clinic-edit-dialog";
 import { ClinicSchedulesManager } from "@/components/clinics/clinic-schedules-manager";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteClinic, hardDeleteClinic } from "@/lib/actions/clinics";
+import { toast } from "sonner";
 
 interface ClinicsTableProps {
   clinics: Clinic[];
@@ -66,12 +80,62 @@ export function ClinicsTable({
   const [status, setStatus] = useState(searchParams.get("status") || "all");
   const pageSize = parseInt(searchParams.get("pageSize") || "20");
 
+  // State for delete dialogs
+  const [softDeleteDialogOpen, setSoftDeleteDialogOpen] = useState(false);
+  const [hardDeleteDialogOpen, setHardDeleteDialogOpen] = useState(false);
+  const [clinicToDelete, setClinicToDelete] = useState<Clinic | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const isAdmin = userRole === Role.ADMIN;
   const canCreateClinics = isAdmin;
 
   const canEditClinic = (clinicId: string) => {
     if (isAdmin) return true;
     return userClinicId === clinicId;
+  };
+
+  const handleSoftDelete = async () => {
+    if (!clinicToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteClinic(clinicToDelete.id);
+      toast.success("Clínica desactivada correctamente");
+      setSoftDeleteDialogOpen(false);
+      setClinicToDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error?.message || "Error al desactivar la clínica");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleHardDelete = async () => {
+    if (!clinicToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await hardDeleteClinic(clinicToDelete.id);
+      toast.success("Clínica eliminada permanentemente");
+      setHardDeleteDialogOpen(false);
+      setClinicToDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error?.message || "Error al eliminar la clínica");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openSoftDeleteDialog = (clinic: Clinic) => {
+    setClinicToDelete(clinic);
+    setSoftDeleteDialogOpen(true);
+  };
+
+  const openHardDeleteDialog = (clinic: Clinic) => {
+    setClinicToDelete(clinic);
+    setHardDeleteDialogOpen(true);
   };
 
   const handleDeleteClinic = (clinicId: string) => {
@@ -306,6 +370,27 @@ export function ClinicsTable({
                         />
                       </>
                     )}
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Desactivar clínica"
+                          onClick={() => openSoftDeleteDialog(clinic)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openHardDeleteDialog(clinic)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title="Eliminar permanentemente"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -426,6 +511,88 @@ export function ClinicsTable({
           </div>
         )}
       </CardContent>
+
+      {/* Soft Delete Dialog */}
+      <AlertDialog
+        open={softDeleteDialogOpen}
+        onOpenChange={setSoftDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              ¿Desactivar esta clínica?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                La clínica <strong>{clinicToDelete?.name}</strong> será marcada
+                como inactiva y no aparecerá en las listas activas.
+              </p>
+              <p className="text-muted-foreground">
+                Esta acción es reversible. Puedes reactivar la clínica más tarde
+                si es necesario.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Los registros de la clínica (usuarios, doctores, pacientes,
+                citas) se mantendrán intactos.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleSoftDelete} disabled={isDeleting}>
+              {isDeleting ? "Desactivando..." : "Desactivar clínica"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hard Delete Dialog */}
+      <AlertDialog
+        open={hardDeleteDialogOpen}
+        onOpenChange={setHardDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              ¿Eliminar permanentemente esta clínica?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="font-semibold">
+                Esta acción es irreversible y eliminará permanentemente todos
+                los datos de la clínica <strong>{clinicToDelete?.name}</strong>.
+              </p>
+              <p>Solo se puede realizar si la clínica no tiene:</p>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li>Usuarios asignados</li>
+                <li>Doctores registrados</li>
+                <li>Pacientes registrados</li>
+                <li>Citas programadas</li>
+                <li>Consultorios configurados</li>
+              </ul>
+              <p className="text-muted-foreground mt-4">
+                Si la clínica tiene registros relacionados, deberás eliminarlos
+                primero o usar la desactivación (soft delete).
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting ? "Eliminando..." : "Eliminar permanentemente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
