@@ -223,6 +223,71 @@ export async function deleteRoom(id: string) {
   revalidatePath("/rooms");
 }
 
+export async function hardDeleteRoom(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canManageRooms(session.user)) {
+    throw new Error("No tienes permisos para eliminar consultorios");
+  }
+
+  // Only ADMIN and CLINIC_ADMIN can hard delete
+  if (session.user.role !== "ADMIN" && session.user.role !== "CLINIC_ADMIN") {
+    throw new Error(
+      "Solo administradores pueden eliminar consultorios permanentemente"
+    );
+  }
+
+  // Validate room exists
+  const room = await prisma.room.findUnique({
+    where: { id },
+    select: { id: true, clinicId: true },
+  });
+
+  if (!room) {
+    throw new Error("No se encontró el consultorio solicitado");
+  }
+
+  // Validate clinic access for CLINIC_ADMIN
+  if (!Permissions.canAccessClinic(session.user, room.clinicId)) {
+    throw new Error("No tienes acceso a esta clínica");
+  }
+
+  // Check for any appointments (active or inactive)
+  const totalAppointments = await prisma.appointment.count({
+    where: { roomId: id },
+  });
+
+  if (totalAppointments > 0) {
+    throw new Error(
+      `No se puede eliminar permanentemente el consultorio porque tiene ${totalAppointments} cita(s) registrada(s). Usa la eliminación suave en su lugar`
+    );
+  }
+
+  // Check for any doctors assigned to this room (active or inactive)
+  const totalDoctors = await prisma.doctor.count({
+    where: { roomId: id },
+  });
+
+  if (totalDoctors > 0) {
+    throw new Error(
+      `No se puede eliminar permanentemente el consultorio porque tiene ${totalDoctors} doctor(es) asociado(s). Usa la eliminación suave en su lugar`
+    );
+  }
+
+  try {
+    await prisma.room.delete({
+      where: { id },
+    });
+
+    revalidatePath("/rooms");
+  } catch (error) {
+    console.error("Error hard deleting room:", error);
+    throw new Error(
+      "No se pudo eliminar el consultorio permanentemente. Puede tener datos relacionados"
+    );
+  }
+}
+
 export async function getRooms() {
   const session = await getServerSession(authOptions);
 
