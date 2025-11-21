@@ -27,6 +27,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Filter,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useTransition } from "react";
@@ -42,6 +44,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  deletePatient,
+  hardDeletePatient,
+  reactivatePatient,
+} from "@/lib/actions/patients";
+import { toast } from "sonner";
 
 interface PatientWithRelations extends Patient {
   clinic?: Clinic | null;
@@ -101,6 +119,18 @@ export function PatientsTable({
   );
   const pageSize = parseInt(searchParams.get("pageSize") || "20");
 
+  const [hardDeleteDialogOpen, setHardDeleteDialogOpen] = useState(false);
+  const [softDeleteDialogOpen, setSoftDeleteDialogOpen] = useState(false);
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<string | null>(null);
+  const [patientToSoftDelete, setPatientToSoftDelete] = useState<string | null>(
+    null
+  );
+  const [patientToReactivate, setPatientToReactivate] = useState<string | null>(
+    null
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Restrict access for NURSE: they should not see the full patients list.
   // If you later want to show only "patients with appointments today",
   // that requires passing appointment data into this component.
@@ -124,10 +154,70 @@ export function PatientsTable({
     );
   }
 
-  const handleDeletePatient = (patientId: string) => {
-    alert(
-      "Delete patient functionality will be implemented in the next iteration"
-    );
+  const handleSoftDelete = async () => {
+    if (!patientToSoftDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await deletePatient(patientToSoftDelete);
+      toast.success("Paciente desactivado correctamente");
+      setSoftDeleteDialogOpen(false);
+      setPatientToSoftDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error.message || "Error al desactivar paciente");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openSoftDeleteDialog = (patientId: string) => {
+    setPatientToSoftDelete(patientId);
+    setSoftDeleteDialogOpen(true);
+  };
+
+  const handleReactivate = async () => {
+    if (!patientToReactivate) return;
+
+    setIsDeleting(true);
+    try {
+      await reactivatePatient(patientToReactivate);
+      toast.success("Paciente reactivado correctamente");
+      setReactivateDialogOpen(false);
+      setPatientToReactivate(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error.message || "Error al reactivar paciente");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openReactivateDialog = (patientId: string) => {
+    setPatientToReactivate(patientId);
+    setReactivateDialogOpen(true);
+  };
+
+  const handleHardDelete = async () => {
+    if (!patientToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await hardDeletePatient(patientToDelete);
+      toast.success("Paciente eliminado permanentemente");
+      setHardDeleteDialogOpen(false);
+      setPatientToDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error.message || "Error al eliminar paciente");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openHardDeleteDialog = (patientId: string) => {
+    setPatientToDelete(patientId);
+    setHardDeleteDialogOpen(true);
   };
 
   const handlePatientUpdated = () => {
@@ -454,13 +544,44 @@ export function PatientsTable({
                             </Button>
                           }
                         />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeletePatient(patient?.id || "")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {patient?.isActive ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              openSoftDeleteDialog(patient?.id || "")
+                            }
+                            title="Desactivar paciente"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              openReactivateDialog(patient?.id || "")
+                            }
+                            title="Reactivar paciente"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {(session?.user?.role === "ADMIN" ||
+                          session?.user?.role === "CLINIC_ADMIN") && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              openHardDeleteDialog(patient?.id || "")
+                            }
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Eliminar permanentemente"
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </Button>
+                        )}
                       </>
                     )}
                     {!canEdit && (
@@ -598,6 +719,123 @@ export function PatientsTable({
           </div>
         )}
       </CardContent>
+
+      {/* Soft Delete Confirmation Dialog */}
+      <AlertDialog
+        open={softDeleteDialogOpen}
+        onOpenChange={setSoftDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              ¿Desactivar este paciente?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                El paciente será marcado como inactivo y no aparecerá en las
+                listas activas.
+              </p>
+              <p className="text-muted-foreground">
+                Esta acción es reversible. Puedes reactivar el paciente más
+                tarde si es necesario.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Los registros del paciente (citas, consentimientos, seguros) se
+                mantendrán intactos.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleSoftDelete} disabled={isDeleting}>
+              {isDeleting ? "Desactivando..." : "Desactivar paciente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reactivate Confirmation Dialog */}
+      <AlertDialog
+        open={reactivateDialogOpen}
+        onOpenChange={setReactivateDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-green-600">
+              <RefreshCw className="h-5 w-5" />
+              ¿Reactivar este paciente?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                El paciente será marcado como activo y volverá a aparecer en las
+                listas activas.
+              </p>
+              <p className="text-muted-foreground">
+                Podrás volver a gestionar citas, consentimientos y seguros para
+                este paciente.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReactivate}
+              disabled={isDeleting}
+              className="bg-green-600 hover:bg-green-700 focus:ring-green-600"
+            >
+              {isDeleting ? "Reactivando..." : "Reactivar paciente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hard Delete Confirmation Dialog */}
+      <AlertDialog
+        open={hardDeleteDialogOpen}
+        onOpenChange={setHardDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              ¿Eliminar permanentemente este paciente?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="font-semibold">
+                Esta acción es irreversible y eliminará permanentemente todos
+                los datos del paciente.
+              </p>
+              <p>Solo se puede realizar si el paciente no tiene:</p>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li>Citas registradas</li>
+                <li>Consentimientos firmados</li>
+                <li>Seguros médicos</li>
+              </ul>
+              <p className="text-muted-foreground mt-4">
+                Si el paciente tiene registros relacionados, deberás eliminarlos
+                primero o usar la eliminación lógica (soft delete).
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting ? "Eliminando..." : "Eliminar permanentemente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

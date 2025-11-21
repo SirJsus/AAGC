@@ -425,6 +425,94 @@ export async function deletePatient(id: string) {
   revalidatePath("/patients");
 }
 
+export async function hardDeletePatient(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canHardDeletePatients(session.user)) {
+    throw new Error(
+      "No tienes permisos para eliminar permanentemente pacientes"
+    );
+  }
+
+  // Verificar si el paciente existe
+  const patient = await prisma.patient.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      _count: {
+        select: {
+          appointments: true,
+          consents: true,
+          insurances: true,
+        },
+      },
+    },
+  });
+
+  if (!patient) {
+    throw new Error("No se encontró el paciente solicitado");
+  }
+
+  // Verificar si tiene relaciones activas
+  const hasActiveRelations =
+    patient._count.appointments > 0 ||
+    patient._count.consents > 0 ||
+    patient._count.insurances > 0;
+
+  if (hasActiveRelations) {
+    throw new Error(
+      `No se puede eliminar permanentemente al paciente ${patient.firstName} ${patient.lastName} porque tiene registros relacionados (citas: ${patient._count.appointments}, consentimientos: ${patient._count.consents}, seguros: ${patient._count.insurances}). Por favor, elimina estos registros primero o usa la eliminación lógica.`
+    );
+  }
+
+  // Eliminar permanentemente
+  await prisma.patient.delete({
+    where: { id },
+  });
+
+  revalidatePath("/patients");
+}
+
+export async function reactivatePatient(id: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user || !Permissions.canManagePatients(session.user)) {
+    throw new Error("No tienes permisos para reactivar pacientes");
+  }
+
+  // Verificar si el paciente existe
+  const patient = await prisma.patient.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      isActive: true,
+    },
+  });
+
+  if (!patient) {
+    throw new Error("No se encontró el paciente solicitado");
+  }
+
+  if (patient.isActive) {
+    throw new Error("Este paciente ya está activo");
+  }
+
+  // Reactivar el paciente
+  await prisma.patient.update({
+    where: { id },
+    data: {
+      isActive: true,
+      deletedAt: null,
+    },
+  });
+
+  revalidatePath("/patients");
+}
+
 // New interface for pagination and filters
 export interface GetPatientsParams {
   page?: number;

@@ -59,6 +59,18 @@ export function PatientCreateDialog({
   >("internal");
   const [previewId, setPreviewId] = useState<string>("");
 
+  // Helper function to capitalize names properly
+  const capitalizeName = (name: string): string => {
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((word) => {
+        if (word.length === 0) return "";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(" ");
+  };
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -360,35 +372,42 @@ export function PatientCreateDialog({
     setIsLoading(true);
     try {
       await createPatient({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        secondLastName: formData.secondLastName || undefined,
+        firstName: capitalizeName(formData.firstName),
+        lastName: capitalizeName(formData.lastName),
+        secondLastName: formData.secondLastName
+          ? capitalizeName(formData.secondLastName)
+          : undefined,
         noSecondLastName: formData.noSecondLastName,
         phone: formData.phone,
         email: formData.email || undefined,
         birthDate: formData.birthDate || undefined,
         gender: formData.gender,
-        address: formData.address || undefined,
-        emergencyContactFirstName:
-          formData.emergencyContactFirstName || undefined,
-        emergencyContactLastName:
-          formData.emergencyContactLastName || undefined,
-        emergencyContactSecondLastName:
-          formData.emergencyContactSecondLastName || undefined,
+        address: formData.address
+          ? capitalizeName(formData.address)
+          : undefined,
+        emergencyContactFirstName: formData.emergencyContactFirstName
+          ? capitalizeName(formData.emergencyContactFirstName)
+          : undefined,
+        emergencyContactLastName: formData.emergencyContactLastName
+          ? capitalizeName(formData.emergencyContactLastName)
+          : undefined,
+        emergencyContactSecondLastName: formData.emergencyContactSecondLastName
+          ? capitalizeName(formData.emergencyContactSecondLastName)
+          : undefined,
         emergencyContactNoSecondLastName:
           formData.emergencyContactNoSecondLastName,
         emergencyContactPhone: formData.emergencyContactPhone || undefined,
         primaryDoctorFirstName:
-          doctorType === "external"
-            ? formData.primaryDoctorFirstName
+          doctorType === "external" && formData.primaryDoctorFirstName
+            ? capitalizeName(formData.primaryDoctorFirstName)
             : undefined,
         primaryDoctorLastName:
-          doctorType === "external"
-            ? formData.primaryDoctorLastName
+          doctorType === "external" && formData.primaryDoctorLastName
+            ? capitalizeName(formData.primaryDoctorLastName)
             : undefined,
         primaryDoctorSecondLastName:
-          doctorType === "external"
-            ? formData.primaryDoctorSecondLastName
+          doctorType === "external" && formData.primaryDoctorSecondLastName
+            ? capitalizeName(formData.primaryDoctorSecondLastName)
             : undefined,
         primaryDoctorNoSecondLastName:
           doctorType === "external"
