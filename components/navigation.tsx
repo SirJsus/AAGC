@@ -16,6 +16,7 @@ import {
   Home,
   FileText,
   Upload,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Permissions } from "@/lib/permissions";
@@ -89,6 +90,12 @@ export function Navigation({ className }: NavigationProps) {
       icon: Settings,
       label: "Clinics",
       show: Permissions.canManageClinics(user),
+    },
+    {
+      href: "/reports",
+      icon: BarChart3,
+      label: "Reports",
+      show: Permissions.canViewReports(user),
     },
     {
       href: "/import",

@@ -158,6 +158,10 @@ export class Permissions {
     );
   }
 
+  static canViewReports(user: PermissionCheck): boolean {
+    return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
+  }
+
   static requiresClinicScope(role: Role): boolean {
     return role !== Role.ADMIN;
   }
