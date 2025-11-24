@@ -162,6 +162,10 @@ export class Permissions {
     return user.role === Role.ADMIN || user.role === Role.CLINIC_ADMIN;
   }
 
+  static canViewOwnReports(user: PermissionCheck): boolean {
+    return user.role === Role.DOCTOR;
+  }
+
   static requiresClinicScope(role: Role): boolean {
     return role !== Role.ADMIN;
   }

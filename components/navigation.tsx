@@ -98,6 +98,12 @@ export function Navigation({ className }: NavigationProps) {
       show: Permissions.canViewReports(user),
     },
     {
+      href: "/my-reports",
+      icon: BarChart3,
+      label: "My Reports",
+      show: Permissions.canViewOwnReports(user),
+    },
+    {
       href: "/import",
       icon: Upload,
       label: "Import Data",
