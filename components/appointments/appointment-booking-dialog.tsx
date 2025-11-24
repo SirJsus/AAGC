@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
 import {
   Patient,
   Doctor,
@@ -108,6 +109,7 @@ export function AppointmentBookingDialog({
   trigger,
   onSuccess,
 }: AppointmentBookingDialogProps) {
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<
     "doctor" | "patient" | "type" | "datetime" | "details"
@@ -1296,6 +1298,18 @@ export function AppointmentBookingDialog({
               </Alert>
             )}
 
+            {(session?.user?.role === "ADMIN" ||
+              session?.user?.role === "CLINIC_ADMIN") && (
+              <Alert className="bg-amber-50 border-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800">
+                  Como administrador, puedes agendar citas en fechas pasadas.
+                  Las fechas anteriores a hoy aparecen resaltadas en color
+                  ámbar. Úsalas solo para registrar citas que ya ocurrieron.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -1310,17 +1324,24 @@ export function AppointmentBookingDialog({
                     selected={selectedDate}
                     onSelect={handleDateSelect}
                     disabled={(date) => {
-                      const today = new Date(new Date().setHours(0, 0, 0, 0));
                       const timezone =
                         selectedDoctor?.clinic?.timezone ||
                         "America/Mexico_City";
                       const key = formatDateToString(date as Date, timezone);
                       const weekday = (date as Date).getDay();
                       return (
-                        date < today ||
                         unavailableDates.has(key) ||
                         nonWorkingWeekdays.has(weekday)
                       );
+                    }}
+                    modifiers={{
+                      pastDate: (date) => {
+                        const today = new Date(new Date().setHours(0, 0, 0, 0));
+                        return date < today;
+                      },
+                    }}
+                    modifiersClassNames={{
+                      pastDate: "bg-amber-50 text-amber-700 hover:bg-amber-100",
                     }}
                     className="rounded-md border"
                   />

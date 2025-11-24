@@ -55,12 +55,15 @@ export async function createAppointment(
     );
   }
 
-  // Validate date is not in the past
+  // Validate date is not in the past (except for ADMIN and CLINIC_ADMIN)
   const appointmentDate = new Date(validatedData.date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (appointmentDate < today) {
-    throw new Error("No se pueden crear citas en fechas pasadas");
+    // Only ADMIN and CLINIC_ADMIN can create appointments in past dates
+    if (session.user.role !== "ADMIN" && session.user.role !== "CLINIC_ADMIN") {
+      throw new Error("No se pueden crear citas en fechas pasadas");
+    }
   }
 
   // Get clinic ID for appointment
