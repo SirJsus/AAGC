@@ -13,7 +13,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Calendar, Clock, Eye, X, Filter, Edit } from "lucide-react";
+import {
+  Trash2,
+  Calendar,
+  Clock,
+  Eye,
+  X,
+  Filter,
+  Edit,
+  AlertCircle,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -40,9 +49,19 @@ import {
   hardDeleteAppointment,
 } from "@/lib/actions/appointments";
 import { AppointmentWithRelations } from "@/types/appointments";
+import { getDoctorExceptions } from "@/lib/actions/doctor-schedules";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { startOfWeek, endOfWeek } from "date-fns";
+
+interface DoctorException {
+  id: string;
+  date: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  reason?: string | null;
+  doctorId: string;
+}
 
 interface AppointmentsTableProps {
   appointments: AppointmentWithRelations[];
@@ -60,6 +79,11 @@ export function AppointmentsTable({
   // State for clinic filter
   const [clinicFilter, setClinicFilter] = useState<string>(
     searchParams.get("clinicId") || "all"
+  );
+
+  // State for doctor exceptions
+  const [doctorExceptions, setDoctorExceptions] = useState<DoctorException[]>(
+    []
   );
 
   // State for date range filter - defaults to current week
@@ -134,6 +158,45 @@ export function AppointmentsTable({
     return dateFiltered;
   }, [appointments, dateRange, session?.user?.role]);
 
+  // Load doctor exceptions when date range changes
+  useEffect(() => {
+    const loadDoctorExceptions = async () => {
+      if (!dateRange?.from) return;
+
+      try {
+        // Get unique doctor IDs from appointments
+        const doctorIds = Array.from(
+          new Set(appointments.map((a) => a.doctorId))
+        ).filter((id): id is string => id !== null);
+
+        if (doctorIds.length === 0) return;
+
+        // Format date for query (YYYY-MM-DD)
+        const fromDate = dateRange.from.toISOString().split("T")[0];
+
+        // Load exceptions for all doctors
+        const exceptionsPromises = doctorIds.map((doctorId) =>
+          getDoctorExceptions(doctorId, fromDate)
+        );
+
+        const exceptionsArrays = await Promise.all(exceptionsPromises);
+        const allExceptions = exceptionsArrays.flat();
+
+        // Filter exceptions by date range
+        const filteredExceptions = allExceptions.filter((exc) =>
+          isDateInRange(exc.date, dateRange)
+        );
+
+        setDoctorExceptions(filteredExceptions);
+      } catch (error) {
+        console.error("Error loading doctor exceptions:", error);
+        setDoctorExceptions([]);
+      }
+    };
+
+    loadDoctorExceptions();
+  }, [dateRange, appointments]);
+
   // Return a patient ID formatted according to the viewer's role.
   // Example: "ABC-DEF-G1" -> for NURSE returns "DEF-G1". Others see full ID.
   const formatPatientIdForUser = (id?: string | null) => {
@@ -153,6 +216,64 @@ export function AppointmentsTable({
 
     return raw;
   };
+
+  // Combine appointments and exceptions for display
+  const combinedRows = useMemo(() => {
+    const rows: Array<{
+      type: "appointment" | "exception";
+      data: AppointmentWithRelations | DoctorException;
+      sortDate: Date;
+    }> = [];
+
+    // Add appointments
+    displayedAppointments.forEach((appointment) => {
+      rows.push({
+        type: "appointment",
+        data: appointment,
+        sortDate:
+          typeof appointment.date === "string"
+            ? new Date(appointment.date)
+            : appointment.date,
+      });
+    });
+
+    // Add exceptions (filtered by clinic if needed)
+    doctorExceptions.forEach((exception) => {
+      // If clinic filter is active, only show exceptions for doctors in that clinic
+      if (clinicFilter !== "all") {
+        const doctor = appointments.find(
+          (a) => a.doctorId === exception.doctorId
+        );
+        if (!doctor || doctor.clinicId !== clinicFilter) return;
+      }
+
+      rows.push({
+        type: "exception",
+        data: exception,
+        sortDate: new Date(exception.date + "T00:00:00"),
+      });
+    });
+
+    // Sort by date and time
+    return rows.sort((a, b) => {
+      const dateCompare = a.sortDate.getTime() - b.sortDate.getTime();
+      if (dateCompare !== 0) return dateCompare;
+
+      // If same date, appointments first, then exceptions
+      if (a.type === "appointment" && b.type === "exception") return -1;
+      if (a.type === "exception" && b.type === "appointment") return 1;
+
+      // If both appointments, sort by start time
+      if (a.type === "appointment" && b.type === "appointment") {
+        const aData = a.data as AppointmentWithRelations;
+        const bData = b.data as AppointmentWithRelations;
+        return aData.startTime.localeCompare(bData.startTime);
+      }
+
+      return 0;
+    });
+  }, [displayedAppointments, doctorExceptions, clinicFilter, appointments]);
+
   const [selectedAppointment, setSelectedAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -297,6 +418,11 @@ export function AppointmentsTable({
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             Appointments ({displayedAppointments?.length || 0})
+            {doctorExceptions.length > 0 && (
+              <span className="text-sm text-muted-foreground font-normal">
+                + {doctorExceptions.length} excepciones
+              </span>
+            )}
           </CardTitle>
           {session?.user && Permissions.canCreateAppointments(session.user) && (
             <AppointmentBookingDialog onSuccess={handleAppointmentCreated} />
@@ -369,101 +495,175 @@ export function AppointmentsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayedAppointments?.map((appointment) => (
-              <TableRow key={appointment.id}>
-                <TableCell className="font-medium">
-                  {formatPatientIdForUser(appointment.patient.customId)}
-                </TableCell>
-                <TableCell className="font-medium">
-                  {appointment.patient.firstName} {appointment.patient.lastName}{" "}
-                  {appointment.patient.secondLastName || ""}
-                </TableCell>
-                <TableCell>
-                  Dr. {appointment.doctor?.user?.firstName}{" "}
-                  {appointment.doctor?.user?.lastName}{" "}
-                  {appointment.doctor?.user?.secondLastName || ""}
-                </TableCell>
-                <TableCell>
-                  {(() => {
-                    const timezone =
-                      appointment.clinic?.timezone || "America/Mexico_City";
-                    const displayDate = formatDateForDisplay(
-                      appointment.date,
-                      timezone
-                    );
-                    return displayDate;
-                  })()}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    {formatTimeForDisplay(appointment.startTime)} -{" "}
-                    {formatTimeForDisplay(appointment.endTime)}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {appointment.appointmentType?.name ||
-                    appointment.customReason ||
-                    "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={getStatusBadgeVariant(
-                      appointment.status as AppointmentStatus
-                    )}
-                  >
-                    {getStatusLabel(appointment.status as AppointmentStatus)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewDetails(appointment)}
-                      title="Ver detalles"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    {session?.user &&
-                      Permissions.canEditAppointments(session.user) && (
+            {combinedRows.map((row) => {
+              if (row.type === "appointment") {
+                const appointment = row.data as AppointmentWithRelations;
+                return (
+                  <TableRow key={`appt-${appointment.id}`}>
+                    <TableCell className="font-medium">
+                      {formatPatientIdForUser(appointment.patient.customId)}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {appointment.patient.firstName}{" "}
+                      {appointment.patient.lastName}{" "}
+                      {appointment.patient.secondLastName || ""}
+                    </TableCell>
+                    <TableCell>
+                      Dr. {appointment.doctor?.user?.firstName}{" "}
+                      {appointment.doctor?.user?.lastName}{" "}
+                      {appointment.doctor?.user?.secondLastName || ""}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const timezone =
+                          appointment.clinic?.timezone || "America/Mexico_City";
+                        const displayDate = formatDateForDisplay(
+                          appointment.date,
+                          timezone
+                        );
+                        return displayDate;
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {formatTimeForDisplay(appointment.startTime)} -{" "}
+                        {formatTimeForDisplay(appointment.endTime)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {appointment.appointmentType?.name ||
+                        appointment.customReason ||
+                        "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={getStatusBadgeVariant(
+                          appointment.status as AppointmentStatus
+                        )}
+                      >
+                        {getStatusLabel(
+                          appointment.status as AppointmentStatus
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEditAppointment(appointment)}
-                          title="Editar cita"
+                          onClick={() => handleViewDetails(appointment)}
+                          title="Ver detalles"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
+                        {session?.user &&
+                          Permissions.canEditAppointments(session.user) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditAppointment(appointment)}
+                              title="Editar cita"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                        {session?.user &&
+                        Permissions.canDeleteAppointments(session.user) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handlePermanentDelete(appointment.id)
+                            }
+                            className="text-destructive hover:text-destructive"
+                            title="Eliminar permanentemente"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleDeleteAppointment(appointment.id)
+                            }
+                            title="Cancelar cita"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              } else {
+                // Exception row
+                const exception = row.data as DoctorException;
+                const doctor = appointments.find(
+                  (a) => a.doctorId === exception.doctorId
+                )?.doctor;
+                return (
+                  <TableRow
+                    key={`exc-${exception.id}`}
+                    className="bg-amber-50 hover:bg-amber-100 border-l-4 border-l-amber-500"
+                  >
+                    <TableCell className="font-medium text-amber-900">
+                      <AlertCircle className="h-4 w-4 inline mr-1" />
+                      EXCEPCIÓN
+                    </TableCell>
+                    <TableCell
+                      colSpan={2}
+                      className="font-medium text-amber-900"
+                    >
+                      Dr. {doctor?.user?.firstName || "—"}{" "}
+                      {doctor?.user?.lastName || ""}{" "}
+                      {doctor?.user?.secondLastName || ""}
+                      {exception.reason && (
+                        <span className="text-sm font-normal text-amber-700 block">
+                          {exception.reason}
+                        </span>
                       )}
-                    {session?.user &&
-                    Permissions.canDeleteAppointments(session.user) ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePermanentDelete(appointment.id)}
-                        className="text-destructive hover:text-destructive"
-                        title="Eliminar permanentemente"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteAppointment(appointment.id)}
-                        title="Cancelar cita"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                    </TableCell>
+                    <TableCell className="text-amber-900">
+                      {new Date(
+                        exception.date + "T00:00:00"
+                      ).toLocaleDateString("es-MX", {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell className="text-amber-900">
+                      {exception.startTime && exception.endTime ? (
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          {formatTimeForDisplay(exception.startTime)} -{" "}
+                          {formatTimeForDisplay(exception.endTime)}
+                        </div>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="bg-amber-200 text-amber-900"
+                        >
+                          Día completo
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      colSpan={3}
+                      className="text-amber-700 text-sm italic"
+                    >
+                      No disponible para citas
+                    </TableCell>
+                  </TableRow>
+                );
+              }
+            })}
           </TableBody>
         </Table>
-        {(!displayedAppointments || displayedAppointments.length === 0) && (
+        {combinedRows.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             No appointments found. Schedule your first appointment to get
             started.
