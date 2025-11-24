@@ -313,3 +313,112 @@ export async function getDoctorMetrics(doctorId: string) {
     weekUpcoming,
   };
 }
+
+// Simplified metrics for ADMIN/CLINIC_ADMIN focused on TODAY only
+export async function getTodayMetrics(
+  clinicId?: string | null,
+  userRole?: string
+) {
+  const today = new Date();
+
+  // Get the clinic's timezone (if clinicId is provided)
+  let timezone = "America/Mexico_City";
+  if (clinicId) {
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    if (clinic?.timezone) {
+      timezone = clinic.timezone;
+    }
+  }
+
+  const todayUTC = formatDateForInput(today, timezone);
+  const baseWhere = userRole === "ADMIN" ? {} : { clinicId: clinicId || "" };
+
+  // Get today's appointments with details
+  const todayAppointments = await prisma.appointment.findMany({
+    where: {
+      ...baseWhere,
+      date: todayUTC,
+      isActive: true,
+      deletedAt: null,
+    },
+    include: {
+      patient: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          pendingCompletion: true,
+        },
+      },
+      appointmentType: true,
+    },
+  });
+
+  // Count by status
+  const total = todayAppointments.length;
+  const completed = todayAppointments.filter(
+    (a) =>
+      a.status === AppointmentStatus.COMPLETED ||
+      a.status === AppointmentStatus.PAID
+  ).length;
+  const pending = todayAppointments.filter(
+    (a) =>
+      a.status === AppointmentStatus.PENDING ||
+      a.status === AppointmentStatus.CONFIRMED
+  ).length;
+  const inProgress = todayAppointments.filter(
+    (a) => a.status === AppointmentStatus.IN_CONSULTATION
+  ).length;
+
+  // Calculate today's confirmed income
+  const confirmedIncome = todayAppointments
+    .filter(
+      (a) =>
+        a.status === AppointmentStatus.COMPLETED ||
+        a.status === AppointmentStatus.PAID
+    )
+    .reduce((sum, apt) => {
+      const price = apt.customPrice || apt.appointmentType?.price || 0;
+      return sum + Number(price);
+    }, 0);
+
+  // Count patients with incomplete data
+  const incompletePatients = await prisma.patient.count({
+    where: {
+      ...baseWhere,
+      pendingCompletion: true,
+      isActive: true,
+      deletedAt: null,
+    },
+  });
+
+  // Count unconfirmed upcoming appointments (today and future)
+  const unconfirmedAppointments = await prisma.appointment.count({
+    where: {
+      ...baseWhere,
+      date: { gte: todayUTC },
+      status: AppointmentStatus.PENDING,
+      isActive: true,
+      deletedAt: null,
+    },
+  });
+
+  // Count pending payments
+  const pendingPayments = todayAppointments.filter(
+    (a) => a.status === AppointmentStatus.TRANSFER_PENDING
+  ).length;
+
+  return {
+    total,
+    completed,
+    pending,
+    inProgress,
+    confirmedIncome,
+    incompletePatients,
+    unconfirmedAppointments,
+    pendingPayments,
+  };
+}
